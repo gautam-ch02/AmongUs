@@ -19,7 +19,7 @@
 
       <main id="game-view" class="main-layout hidden">
         <section class="panel map-panel">
-          <h2>Ship Map</h2>
+          <h2>Ship Layout</h2>
           <div id="map-grid" class="map-grid"></div>
         </section>
 
@@ -64,8 +64,29 @@
       </main>
 
       <section id="log-view" class="panel log-panel hidden">
-        <h2>Live Log</h2>
-        <pre id="latest-log" class="log-output">No data yet.</pre>
+        <h2>Player Journal</h2>
+        <div class="journal-tabs" role="tablist" aria-label="Player journal tabs">
+          <button id="tab-live-logs" class="journal-tab active" type="button" data-tab="live-logs">Live Logs</button>
+          <button id="tab-mission-brief" class="journal-tab" type="button" data-tab="mission-brief">Mission Brief</button>
+          <button id="tab-notes" class="journal-tab" type="button" data-tab="notes">Notes</button>
+        </div>
+
+        <div id="panel-live-logs" class="journal-panel">
+          <div id="latest-log" class="log-output">No visible events yet.</div>
+        </div>
+
+        <div id="panel-mission-brief" class="journal-panel hidden">
+          <pre id="mission-brief" class="brief-output">No mission briefing captured yet.</pre>
+        </div>
+
+        <div id="panel-notes" class="journal-panel hidden">
+          <label for="notes-box"><strong>Private Notes</strong></label>
+          <textarea
+            id="notes-box"
+            class="notes-box"
+            placeholder="Write down suspects, alibis, timelines, and task confirmations..."
+          ></textarea>
+        </div>
       </section>
     </div>
 

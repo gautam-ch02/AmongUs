@@ -33,7 +33,7 @@ class GameRecord:
 
 class GameManager:
     def __init__(self) -> None:
-        load_dotenv()
+        load_dotenv(ROOT_DIR / ".env")
         os.environ["FLASK_ENABLED"] = "True"
         self._records: Dict[int, GameRecord] = {}
         self._next_game_id = 1
@@ -111,8 +111,12 @@ class GameManager:
         if not os.getenv("OPENROUTER_API_KEY"):
             raise RuntimeError("OPENROUTER_API_KEY is required.")
 
-        crewmate_model = crewmate_model or "openrouter/free"
-        impostor_model = impostor_model or "openrouter/free"
+        crewmate_model = (crewmate_model or "").strip() or (
+            os.getenv("OPENROUTER_CREWMATE_MODEL", "").strip() or "openrouter/free"
+        )
+        impostor_model = (impostor_model or "").strip() or (
+            os.getenv("OPENROUTER_IMPOSTOR_MODEL", "").strip() or "openrouter/free"
+        )
 
         async with self._init_lock:
             game_id = self._next_game_id
@@ -182,8 +186,34 @@ class GameManager:
         return positions
 
     def _serialize_meeting_messages(self, game: AmongUs) -> List[Dict[str, Any]]:
+        def _clean_meeting_message(raw_action_text: str) -> str:
+            action_text = str(raw_action_text or "")
+            payload_match = re.match(
+                r"^SPEAK\s*:?\s*(.*)$",
+                action_text,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            message = payload_match.group(1).strip() if payload_match else action_text.strip()
+
+            # If parser leakage included an [Action] block, keep only the last action payload.
+            action_markers = list(re.finditer(r"\[Action\]", message, flags=re.IGNORECASE))
+            if action_markers:
+                message = message[action_markers[-1].end():].strip()
+
+            # Drop markdown/emphasis wrappers around SPEAK directives.
+            message = re.sub(r"^\s*\**\s*SPEAK\s*\**\s*:?\s*", "", message, flags=re.IGNORECASE)
+
+            # Remove leaked reasoning blocks that may follow the actual message.
+            message = re.split(r"\n\s*\[(Reasoning|Thinking Process)\]\s*", message, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+
+            if message.startswith('"') and message.endswith('"') and len(message) >= 2:
+                message = message[1:-1].strip()
+            if message.startswith("'") and message.endswith("'") and len(message) >= 2:
+                message = message[1:-1].strip()
+            return message or "..."
+
         messages: List[Dict[str, Any]] = []
-        for entry in getattr(game, "activity_log", []) or []:
+        for idx, entry in enumerate(getattr(game, "activity_log", []) or []):
             if entry.get("phase") != "meeting":
                 continue
             player_obj = entry.get("player")
@@ -191,15 +221,12 @@ class GameManager:
             if player_obj is None or action is None:
                 continue
             action_text = str(action)
-            if not action_text.startswith("SPEAK"):
+            if not re.match(r"^\s*SPEAK\b", action_text, flags=re.IGNORECASE):
                 continue
-            message_match = re.match(r"^SPEAK\s*:?\s*(.*)$", action_text, flags=re.IGNORECASE | re.DOTALL)
-            message_text = message_match.group(1).strip() if message_match else action_text
-            if not message_text:
-                message_text = "..."
+            message_text = _clean_meeting_message(action_text)
             round_number = entry.get("round")
             timestep = entry.get("timestep")
-            message_id = f"{timestep}:{round_number}:{player_obj.name}:{message_text}"
+            message_id = f"{idx}:{timestep}:{round_number}:{player_obj.name}:{message_text}"
             messages.append(
                 {
                     "id": message_id,
@@ -230,9 +257,15 @@ class GameManager:
         available_actions = []
         player_info = None
         current_step = None
+        if human_agent is not None:
+            # Always expose human-perspective information to the web UI.
+            try:
+                player_info = human_agent.player.all_info_prompt()
+            except Exception:
+                player_info = None
+
         if is_human_turn and human_agent is not None:
             human_state = human_agent.get_current_state_for_web()
-            player_info = human_state.get("player_info")
             current_step = human_state.get("current_step")
             raw_actions = human_state.get("available_actions") or []
             for idx, action in enumerate(raw_actions):
@@ -243,12 +276,6 @@ class GameManager:
                         "requires_message": bool(action.get("requires_message", False)),
                     }
                 )
-        elif current_agent is not None and getattr(current_agent, "player", None) is not None:
-            # Keep player_info live between human turns for UI reactivity.
-            try:
-                player_info = current_agent.player.all_info_prompt()
-            except Exception:
-                player_info = None
 
         player_positions = self._serialize_player_positions(game)
         meeting_messages = self._serialize_meeting_messages(game)
@@ -267,6 +294,7 @@ class GameManager:
             "current_player": current_player,
             "is_human_turn": is_human_turn,
             "human_player_name": human_agent.player.name if human_agent else None,
+            "human_player_identity": human_agent.player.identity if human_agent else None,
             "current_step": current_step,
             "player_info": player_info,
             "available_actions": available_actions,

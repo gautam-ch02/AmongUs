@@ -134,7 +134,18 @@ class Player:
         if len(self.observation_history) == 0:
             text += "No observations have been made yet.\n"
         else:
-            for i, message in enumerate(self.observation_history[-recent_num:]):
+            recent_messages = self.observation_history[-recent_num:]
+            # Keep witnessed kills sticky so crucial evidence is not dropped by recency truncation.
+            kill_messages = [msg for msg in self.observation_history if " KILL " in str(msg)]
+            combined_messages = []
+            seen = set()
+            for msg in kill_messages + recent_messages:
+                key = str(msg)
+                if key in seen:
+                    continue
+                seen.add(key)
+                combined_messages.append(msg)
+            for i, message in enumerate(combined_messages):
                 text += f"{i+1}. {message}\n"
         text += "\n"
         return text

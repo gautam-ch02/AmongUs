@@ -29,8 +29,8 @@ manager = GameManager()
 
 
 class CreateGameRequest(BaseModel):
-    crewmate_model: Optional[str] = "openrouter/free"
-    impostor_model: Optional[str] = "openrouter/free"
+    crewmate_model: Optional[str] = None
+    impostor_model: Optional[str] = None
 
 
 class CreateGameResponse(BaseModel):

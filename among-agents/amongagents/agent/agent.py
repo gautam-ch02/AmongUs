@@ -4,7 +4,7 @@ import os
 import random
 import re
 from datetime import datetime
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple, Optional
 import aiohttp
 import time
 import numpy as np
@@ -57,9 +57,12 @@ class LLMAgent(Agent):
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.api_error_log_path = None
+        self.api_call_log_path = None
+        self.api_call_counter = 0
         experiment_path = os.getenv("EXPERIMENT_PATH")
         if experiment_path:
             self.api_error_log_path = os.path.join(experiment_path, "api-errors.jsonl")
+            self.api_call_log_path = os.path.join(experiment_path, "api-calls.jsonl")
         self.summarization = "No thought process has been made."
         self.processed_memory = "No memory has been processed."
         self.chat_history = []
@@ -81,6 +84,100 @@ class LLMAgent(Agent):
                 "details": details,
             }
             with open(self.api_error_log_path, "a") as f:
+                json.dump(payload, f, separators=(",", ": "))
+                f.write("\n")
+        except Exception:
+            # Never break the game loop due to logging issues.
+            pass
+
+    def _truncate_text(self, text: Any, max_chars: int = 500) -> str:
+        if text is None:
+            return ""
+        raw = str(text).replace("\n", "\\n")
+        if len(raw) <= max_chars:
+            return raw
+        return raw[:max_chars] + "... [truncated]"
+
+    def _extract_action_block(self, text: str) -> str:
+        if not text:
+            return ""
+        action_markers = list(re.finditer(r"\[Action\]", text, flags=re.IGNORECASE))
+        if action_markers:
+            return text[action_markers[-1].end():].strip()
+        line_marker = re.search(r"(?:^|\n)\s*Action\s*:?\s*(.*)$", text, flags=re.IGNORECASE | re.DOTALL)
+        if line_marker:
+            return line_marker.group(1).strip()
+        return text.strip()
+
+    def _extract_speak_message(self, text: str) -> Optional[str]:
+        action_block = self._extract_action_block(text)
+        if not action_block:
+            return None
+
+        speak_match = re.match(
+            r'^\s*\**\s*SPEAK\s*\**\s*:?\s*(.*)$',
+            action_block,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not speak_match:
+            # Fallback: use the last SPEAK occurrence in the action block.
+            candidates = list(
+                re.finditer(r"\bSPEAK\b\s*:?\s*(.*)$", action_block, flags=re.IGNORECASE | re.DOTALL)
+            )
+            if candidates:
+                speak_match = candidates[-1]
+
+        if not speak_match:
+            return None
+
+        message = speak_match.group(1).strip()
+        if message.startswith('"') and message.endswith('"') and len(message) >= 2:
+            message = message[1:-1].strip()
+        if message.startswith("'") and message.endswith("'") and len(message) >= 2:
+            message = message[1:-1].strip()
+        return message if message else "..."
+
+    def log_api_call(
+        self,
+        success: bool,
+        attempt: int,
+        step: Optional[int] = None,
+        phase: Optional[str] = None,
+        http_status: Optional[int] = None,
+        response_text: Optional[str] = None,
+        error_type: Optional[str] = None,
+        error_details: Optional[Any] = None,
+        latency_ms: Optional[float] = None,
+        usage: Optional[Dict[str, Any]] = None,
+        prompt_text: Optional[str] = None,
+    ) -> None:
+        if not self.api_call_log_path:
+            return
+        try:
+            self.api_call_counter += 1
+            payload = {
+                "timestamp": str(datetime.now()),
+                "call_id": self.api_call_counter,
+                "game_index": self.game_index,
+                "step": step,
+                "phase": phase,
+                "player": {
+                    "name": self.player.name,
+                    "identity": self.player.identity,
+                    "location": self.player.location,
+                },
+                "model": self.model,
+                "attempt": attempt,
+                "success": bool(success),
+                "http_status": http_status,
+                "latency_ms": round(latency_ms, 2) if latency_ms is not None else None,
+                "response": self._truncate_text(response_text),
+                "error_type": error_type,
+                "error_details": self._truncate_text(error_details),
+                "prompt_preview": self._truncate_text(prompt_text, max_chars=300),
+                "usage": usage or {},
+            }
+            with open(self.api_call_log_path, "a") as f:
                 json.dump(payload, f, separators=(",", ": "))
                 f.write("\n")
         except Exception:
@@ -181,10 +278,24 @@ class LLMAgent(Agent):
 
         print(".", end="", flush=True)
 
-    async def send_request(self, messages):
+    async def send_request(self, messages, step: Optional[int] = None, phase: Optional[str] = None):
         """Send a POST request to OpenRouter API with the provided messages."""
+        prompt_text = ""
+        if messages:
+            prompt_text = messages[-1].get("content", "") if isinstance(messages[-1], dict) else str(messages[-1])
+
         if not self.api_key:
             self.log_api_error("missing_api_key", "OPENROUTER_API_KEY is not set")
+            self.log_api_call(
+                success=False,
+                attempt=0,
+                step=step,
+                phase=phase,
+                error_type="missing_api_key",
+                error_details="OPENROUTER_API_KEY is not set",
+                response_text="SPEAK: ...",
+                prompt_text=prompt_text,
+            )
             return 'SPEAK: ...'
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
@@ -200,23 +311,69 @@ class LLMAgent(Agent):
         
         async with aiohttp.ClientSession() as session:
             for attempt in range(10):
+                attempt_num = attempt + 1
+                start_time = time.time()
                 try:
                     async with session.post(self.api_url, headers=headers, data=json.dumps(payload)) as response:
                         if response is None:
-                            self.log_api_error("null_response", f"attempt={attempt + 1}")
+                            self.log_api_error("null_response", f"attempt={attempt_num}")
+                            self.log_api_call(
+                                success=False,
+                                attempt=attempt_num,
+                                step=step,
+                                phase=phase,
+                                error_type="null_response",
+                                error_details="response is None",
+                                latency_ms=(time.time() - start_time) * 1000,
+                                prompt_text=prompt_text,
+                            )
                             print(f"API request failed: response is None for {self.model}.")
                             continue
                         if response.status == 200:
                             data = await response.json()
                             if "choices" not in data:
-                                self.log_api_error("missing_choices", f"attempt={attempt + 1}, response={data}")
+                                self.log_api_error("missing_choices", f"attempt={attempt_num}, response={data}")
+                                self.log_api_call(
+                                    success=False,
+                                    attempt=attempt_num,
+                                    step=step,
+                                    phase=phase,
+                                    http_status=response.status,
+                                    error_type="missing_choices",
+                                    error_details=data,
+                                    latency_ms=(time.time() - start_time) * 1000,
+                                    prompt_text=prompt_text,
+                                )
                                 print(f"API request failed: 'choices' key not in response for {self.model}.")
                                 continue
                             if not data["choices"]:
-                                self.log_api_error("empty_choices", f"attempt={attempt + 1}, response={data}")
+                                self.log_api_error("empty_choices", f"attempt={attempt_num}, response={data}")
+                                self.log_api_call(
+                                    success=False,
+                                    attempt=attempt_num,
+                                    step=step,
+                                    phase=phase,
+                                    http_status=response.status,
+                                    error_type="empty_choices",
+                                    error_details=data,
+                                    latency_ms=(time.time() - start_time) * 1000,
+                                    prompt_text=prompt_text,
+                                )
                                 print(f"API request failed: 'choices' key is empty in response for {self.model}.")
                                 continue
-                            return data["choices"][0]["message"]["content"]
+                            response_text = data["choices"][0]["message"]["content"]
+                            self.log_api_call(
+                                success=True,
+                                attempt=attempt_num,
+                                step=step,
+                                phase=phase,
+                                http_status=response.status,
+                                response_text=response_text,
+                                latency_ms=(time.time() - start_time) * 1000,
+                                usage=data.get("usage"),
+                                prompt_text=prompt_text,
+                            )
+                            return response_text
                         else:
                             try:
                                 body = await response.text()
@@ -224,12 +381,44 @@ class LLMAgent(Agent):
                                 body = "<unable to read response body>"
                             self.log_api_error(
                                 "http_error",
-                                f"attempt={attempt + 1}, status={response.status}, body={body}",
+                                f"attempt={attempt_num}, status={response.status}, body={body}",
+                            )
+                            self.log_api_call(
+                                success=False,
+                                attempt=attempt_num,
+                                step=step,
+                                phase=phase,
+                                http_status=response.status,
+                                response_text=body,
+                                error_type="http_error",
+                                error_details=body,
+                                latency_ms=(time.time() - start_time) * 1000,
+                                prompt_text=prompt_text,
                             )
                 except Exception as e:
-                    self.log_api_error("exception", f"attempt={attempt + 1}, error={e}")
-                    print(f"API request failed. Retrying... ({attempt + 1}/10) for {self.model}.")
+                    self.log_api_error("exception", f"attempt={attempt_num}, error={e}")
+                    self.log_api_call(
+                        success=False,
+                        attempt=attempt_num,
+                        step=step,
+                        phase=phase,
+                        error_type="exception",
+                        error_details=str(e),
+                        latency_ms=(time.time() - start_time) * 1000,
+                        prompt_text=prompt_text,
+                    )
+                    print(f"API request failed. Retrying... ({attempt_num}/10) for {self.model}.")
                     continue
+            self.log_api_call(
+                success=False,
+                attempt=10,
+                step=step,
+                phase=phase,
+                error_type="all_attempts_failed",
+                error_details="Returning fallback response after max retries",
+                response_text="SPEAK: ...",
+                prompt_text=prompt_text,
+            )
             return 'SPEAK: ...'
 
     def respond(self, message):
@@ -264,7 +453,7 @@ class LLMAgent(Agent):
             "Phase": phase,
         }
         
-        response = await self.send_request(messages)
+        response = await self.send_request(messages, step=timestep, phase=phase)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
@@ -279,15 +468,15 @@ class LLMAgent(Agent):
         else:
             output_action = response.strip()
 
+        normalized_action_block = self._extract_action_block(output_action)
         for action in available_actions:
-            if repr(action) in output_action:
+            if repr(action) in normalized_action_block:
                 return action
             elif "SPEAK: " in repr(action):
-                # Be tolerant to both "SPEAK: <msg>" and "SPEAK <msg>" outputs.
-                speak_match = re.search(r"\bSPEAK\b\s*:?\s*(.*)$", output_action, flags=re.IGNORECASE | re.DOTALL)
-                if speak_match:
-                    message = speak_match.group(1).strip().strip('"').strip("'")
-                    action.message = message if message else "..."
+                # Be tolerant to SPEAK formats and prevent thought/process leakage.
+                message = self._extract_speak_message(output_action)
+                if message is not None:
+                    action.message = message
                     return action
                 action.message = "..."
         return action

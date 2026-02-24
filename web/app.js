@@ -16,9 +16,13 @@ let lastIsHumanTurn = null;
 let lastActionSignature = "";
 let lastActiveRoom = null;
 const seenMeetingMessages = new Set();
+const seenVisibleLogKeys = new Set();
 const playerState = new Map();
 const playerTokenEls = new Map();
 const roomPlayerContainers = new Map();
+let missionBriefCaptured = false;
+const hiddenAliasByName = new Map();
+let hiddenAliasCounter = 1;
 
 const ROOM_ORDER = [
   "Cafeteria",
@@ -38,6 +42,24 @@ const ROOM_ORDER = [
   "Unknown",
 ];
 
+const ROOM_COORDS = {
+  Cafeteria: { x: 52, y: 17 },
+  Weapons: { x: 76, y: 29 },
+  Navigation: { x: 91, y: 45 },
+  O2: { x: 66, y: 45 },
+  Shields: { x: 79, y: 73 },
+  Communications: { x: 64, y: 87 },
+  Storage: { x: 49, y: 64 },
+  Admin: { x: 63, y: 53 },
+  Electrical: { x: 35, y: 61 },
+  "Lower Engine": { x: 14, y: 74 },
+  Security: { x: 22, y: 52 },
+  Reactor: { x: 5, y: 44 },
+  "Upper Engine": { x: 15, y: 29 },
+  Medbay: { x: 30, y: 38 },
+  Unknown: { x: 89, y: 11 },
+};
+
 const COLOR_MAP = {
   red: "#ff5f56",
   blue: "#59a6ff",
@@ -51,6 +73,7 @@ const COLOR_MAP = {
   white: "#f3f6fb",
   cyan: "#6df6ff",
   lime: "#88ff66",
+  gray: "#7f8794",
 };
 
 const createGameBtn = document.getElementById("create-game-btn");
@@ -69,6 +92,15 @@ const turnStateEl = document.getElementById("turn-state");
 const waitingMessageEl = document.getElementById("waiting-message");
 const actionsEl = document.getElementById("actions");
 const latestLogEl = document.getElementById("latest-log");
+const missionBriefEl = document.getElementById("mission-brief");
+const notesBoxEl = document.getElementById("notes-box");
+
+const tabLiveLogsBtn = document.getElementById("tab-live-logs");
+const tabMissionBriefBtn = document.getElementById("tab-mission-brief");
+const tabNotesBtn = document.getElementById("tab-notes");
+const panelLiveLogsEl = document.getElementById("panel-live-logs");
+const panelMissionBriefEl = document.getElementById("panel-mission-brief");
+const panelNotesEl = document.getElementById("panel-notes");
 
 const speechBox = document.getElementById("speech-box");
 const speechTextInput = document.getElementById("speech-text");
@@ -78,14 +110,25 @@ const meetingPanel = document.getElementById("meeting-panel");
 const meetingFeed = document.getElementById("meeting-feed");
 const taskFeed = document.getElementById("task-feed");
 const seenTaskEvents = new Set();
+const PLAYER_NOTES_STORAGE_KEY = "amongus_player_notes";
 
 function initMapSkeleton() {
   mapGrid.innerHTML = "";
   roomPlayerContainers.clear();
+
+  const mapStage = document.createElement("div");
+  mapStage.className = "map-stage";
+
+  const overlay = document.createElement("div");
+  overlay.className = "map-overlay";
+
   ROOM_ORDER.forEach((roomName) => {
-    const roomEl = document.createElement("div");
-    roomEl.className = "room";
-    roomEl.dataset.room = roomName;
+    const anchor = document.createElement("div");
+    anchor.className = "room-anchor";
+    anchor.dataset.room = roomName;
+    const point = ROOM_COORDS[roomName] || ROOM_COORDS.Unknown;
+    anchor.style.left = `${point.x}%`;
+    anchor.style.top = `${point.y}%`;
 
     const titleEl = document.createElement("div");
     titleEl.className = "room-name";
@@ -94,11 +137,14 @@ function initMapSkeleton() {
     const playersEl = document.createElement("div");
     playersEl.className = "room-players";
 
-    roomEl.appendChild(titleEl);
-    roomEl.appendChild(playersEl);
-    mapGrid.appendChild(roomEl);
+    anchor.appendChild(titleEl);
+    anchor.appendChild(playersEl);
+    overlay.appendChild(anchor);
     roomPlayerContainers.set(roomName, playersEl);
   });
+
+  mapStage.appendChild(overlay);
+  mapGrid.appendChild(mapStage);
 }
 
 function showError(message) {
@@ -109,6 +155,33 @@ function showError(message) {
 function clearError() {
   errorBanner.textContent = "";
   errorBanner.classList.add("hidden");
+}
+
+function setActiveJournalTab(tabName) {
+  const tabs = [tabLiveLogsBtn, tabMissionBriefBtn, tabNotesBtn];
+  tabs.forEach((tab) => tab.classList.remove("active"));
+  panelLiveLogsEl.classList.add("hidden");
+  panelMissionBriefEl.classList.add("hidden");
+  panelNotesEl.classList.add("hidden");
+
+  if (tabName === "mission-brief") {
+    tabMissionBriefBtn.classList.add("active");
+    panelMissionBriefEl.classList.remove("hidden");
+    return;
+  }
+  if (tabName === "notes") {
+    tabNotesBtn.classList.add("active");
+    panelNotesEl.classList.remove("hidden");
+    return;
+  }
+
+  tabLiveLogsBtn.classList.add("active");
+  panelLiveLogsEl.classList.remove("hidden");
+}
+
+function loadNotes() {
+  const saved = window.localStorage.getItem(PLAYER_NOTES_STORAGE_KEY) || "";
+  notesBoxEl.value = saved;
 }
 
 function stopPolling() {
@@ -184,6 +257,27 @@ function parseColorName(playerName) {
   return parts[1].trim().toLowerCase();
 }
 
+function colorHexFromPlayerName(playerName) {
+  const colorName = parseColorName(playerName);
+  return COLOR_MAP[colorName] || COLOR_MAP.gray;
+}
+
+function hexToRgba(hex, alpha) {
+  const normalized = String(hex || "").replace("#", "");
+  if (normalized.length !== 6) {
+    return `rgba(127, 135, 148, ${alpha})`;
+  }
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function extractPlayerLabelFromText(text) {
+  const match = String(text || "").match(/(Player\s+\d+:\s*[A-Za-z]+)/);
+  return match ? match[1] : null;
+}
+
 function parsePlayersLine(value) {
   if (!value || value.toLowerCase() === "none") {
     return [];
@@ -198,8 +292,10 @@ function ensurePlayerRecord(playerName) {
   if (!playerState.has(playerName)) {
     playerState.set(playerName, {
       name: playerName,
+      displayName: playerName,
       room: "Unknown",
       colorName: parseColorName(playerName),
+      isVisible: false,
       isHuman: false,
       isDead: false,
     });
@@ -207,16 +303,63 @@ function ensurePlayerRecord(playerName) {
   return playerState.get(playerName);
 }
 
+function extractCurrentRoomFromInfo(state) {
+  const info = String(state.player_info || "");
+  const locationMatch = info.match(/Current Location:\s*([^\n]+)/);
+  if (!locationMatch) {
+    return null;
+  }
+  return canonicalRoomName(locationMatch[1]);
+}
+
+function extractCurrentRoomOccupantsFromInfo(state, roomName) {
+  const occupants = new Set();
+  const info = String(state.player_info || "");
+  const roomLinePattern = /Players in ([^:]+):\s*([^\n]+)/g;
+  let match;
+  while ((match = roomLinePattern.exec(info)) !== null) {
+    const listedRoom = canonicalRoomName(match[1]);
+    if (listedRoom !== roomName) {
+      continue;
+    }
+    const players = parsePlayersLine(match[2]);
+    players.forEach((rawName) => {
+      const cleanName = String(rawName).replace(/\s*\(dead\)\s*/g, "").trim();
+      if (cleanName) {
+        occupants.add(cleanName);
+      }
+    });
+  }
+  return occupants;
+}
+
+function getHiddenAlias(playerName) {
+  if (!hiddenAliasByName.has(playerName)) {
+    hiddenAliasByName.set(playerName, `Unknown ${hiddenAliasCounter}`);
+    hiddenAliasCounter += 1;
+  }
+  return hiddenAliasByName.get(playerName);
+}
+
 function buildPositionMapFromSnapshot(state) {
   const positionMap = new Map();
   const positions = Array.isArray(state.player_positions) ? state.player_positions : [];
+  const humanRoom = extractCurrentRoomFromInfo(state);
+  const visibleNames = humanRoom ? extractCurrentRoomOccupantsFromInfo(state, humanRoom) : new Set();
+  if (state.human_player_name) {
+    visibleNames.add(state.human_player_name);
+  }
+
   positions.forEach((entry) => {
     if (!entry || !entry.name) {
       return;
     }
+    const isVisible = visibleNames.has(entry.name);
     positionMap.set(entry.name, {
-      room: canonicalRoomName(entry.room),
-      colorName: String(entry.color || parseColorName(entry.name)).toLowerCase(),
+      room: isVisible ? canonicalRoomName(entry.room) : "Unknown",
+      colorName: isVisible ? String(entry.color || parseColorName(entry.name)).toLowerCase() : "gray",
+      displayName: isVisible ? entry.name : getHiddenAlias(entry.name),
+      isVisible,
       isAlive: entry.is_alive !== false,
     });
   });
@@ -231,9 +374,9 @@ function ensureTokenEl(playerName) {
   const token = document.createElement("div");
   token.className = "player-token";
   token.dataset.player = playerName;
-  token.title = record.name;
-  const numberMatch = record.name.match(/Player\s+(\d+)/i);
-  token.textContent = numberMatch ? `P${numberMatch[1]}` : "P";
+  token.title = record.displayName || record.name;
+  const numberMatch = String(record.displayName || "").match(/Player\s+(\d+)/i);
+  token.textContent = numberMatch ? `P${numberMatch[1]}` : "?";
   playerTokenEls.set(playerName, token);
   return token;
 }
@@ -255,8 +398,14 @@ function setHumanTag(token, isHuman) {
 function styleToken(token, record) {
   token.style.background = COLOR_MAP[record.colorName] || "#f3f6fb";
   token.style.opacity = record.isDead ? "0.45" : "1";
-  token.title = record.name;
-  setHumanTag(token, record.isHuman);
+  token.title = record.isVisible || record.isHuman ? (record.displayName || record.name) : "Unknown player";
+  if (record.isVisible || record.isHuman) {
+    const numberMatch = String(record.displayName || record.name).match(/Player\s+(\d+)/i);
+    token.textContent = numberMatch ? `P${numberMatch[1]}` : "P";
+  } else {
+    token.textContent = "?";
+  }
+  setHumanTag(token, record.isHuman && (record.isVisible || record.name === record.displayName));
 }
 
 function moveTokenToRoom(playerName, roomName) {
@@ -358,6 +507,8 @@ function updateMap(previous, current) {
       const record = ensurePlayerRecord(playerName);
       record.room = position.room;
       record.colorName = position.colorName;
+      record.displayName = position.displayName || playerName;
+      record.isVisible = Boolean(position.isVisible);
       record.isDead = !position.isAlive;
     });
   } else {
@@ -403,8 +554,8 @@ function updateMap(previous, current) {
     }
   }
   let activeRoom = null;
-  if (current.current_player && playerState.has(current.current_player)) {
-    activeRoom = canonicalRoomName(playerState.get(current.current_player).room);
+  if (current.human_player_name && playerState.has(current.human_player_name)) {
+    activeRoom = canonicalRoomName(playerState.get(current.human_player_name).room);
     const currentContainer = roomPlayerContainers.get(activeRoom);
     if (currentContainer) {
       currentContainer.parentElement.classList.add("active");
@@ -499,24 +650,148 @@ function extractNewLogLines(previousInfo, currentInfo) {
     .filter((line) => line.length > 0 && !prevLines.has(line));
 }
 
+function parseVisibleEvent(line) {
+  const value = String(line || "").trim();
+  if (!value) {
+    return null;
+  }
+  const normalized = value.replace(/^\d+\.\s*/, "").trim();
+
+  if (/^Timestep\s+\d+:/i.test(normalized)) {
+    const timed = normalized.match(/^Timestep\s+(\d+):\s*\[([^\]]+)\]\s*(.*)$/i);
+    if (timed) {
+      const playerLabel = extractPlayerLabelFromText(timed[3] || "");
+      return {
+        key: `timestep|${timed[1]}|${timed[2]}|${timed[3]}`,
+        meta: `T${timed[1]} | ${timed[2]}`,
+        text: timed[3] || "(no detail)",
+        tintHex: playerLabel ? colorHexFromPlayerName(playerLabel) : null,
+      };
+    }
+    return {
+      key: `timestep|${value}`,
+      meta: "Event",
+      text: value,
+      tintHex: null,
+    };
+  }
+
+  if (/^(Current Location|Players in|Dead players):/i.test(value)) {
+    const label = value.split(":")[0];
+    const body = value.slice(label.length + 1).trim();
+    return {
+      key: `snapshot|${value}`,
+      meta: "Current View",
+      text: `${label}: ${body}`,
+      tintHex: null,
+    };
+  }
+
+  return null;
+}
+
+function appendVisibleLogEntry(entry) {
+  if (!entry || seenVisibleLogKeys.has(entry.key)) {
+    return false;
+  }
+  seenVisibleLogKeys.add(entry.key);
+
+  if (latestLogEl.textContent.trim() === "No visible events yet.") {
+    latestLogEl.textContent = "";
+  }
+
+  const item = document.createElement("div");
+  item.className = "log-entry";
+  if (entry.tintHex) {
+    item.classList.add("tinted");
+    item.style.setProperty("--player-tint-bg", hexToRgba(entry.tintHex, 0.14));
+    item.style.setProperty("--player-tint-border", hexToRgba(entry.tintHex, 0.42));
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "log-meta";
+  meta.textContent = entry.meta;
+
+  const text = document.createElement("div");
+  text.className = "log-text";
+  text.textContent = entry.text;
+
+  item.appendChild(meta);
+  item.appendChild(text);
+  latestLogEl.appendChild(item);
+  return true;
+}
+
+function extractSection(text, header, nextHeader) {
+  const source = String(text || "");
+  const start = source.indexOf(header);
+  if (start < 0) {
+    return "";
+  }
+  const startIdx = start + header.length;
+  const rest = source.slice(startIdx);
+  const end = rest.indexOf(nextHeader);
+  const content = end >= 0 ? rest.slice(0, end) : rest;
+  return content.trim();
+}
+
+function extractMissionBrief(playerInfo, humanIdentity) {
+  const locationSection = extractSection(playerInfo, "Current Location:", "Observation history:");
+  const tasksSection = extractSection(playerInfo, "Your Assigned Tasks:", "Available actions:");
+  if (!tasksSection) {
+    return "";
+  }
+
+  const lines = [];
+  if (humanIdentity) {
+    lines.push(`Role: ${humanIdentity}`);
+    lines.push("");
+  }
+  if (locationSection) {
+    lines.push(`Current Location: ${locationSection}`);
+    lines.push("");
+  }
+  lines.push("Your Assigned Tasks and Suggested Paths:");
+  lines.push(tasksSection);
+  return lines.join("\n").trim();
+}
+
+function captureMissionBrief(current) {
+  if (missionBriefCaptured) {
+    return;
+  }
+  const brief = extractMissionBrief(
+    current.player_info || "",
+    current.human_player_identity || ""
+  );
+  if (!brief) {
+    return;
+  }
+  missionBriefEl.textContent = brief;
+  missionBriefCaptured = true;
+}
+
 function updateLog(previous, current) {
   const currentInfo = current.player_info || "";
   if (!currentInfo) {
     return;
   }
+  captureMissionBrief(current);
+
   const prevInfo = previous ? previous.player_info || "" : "";
   const newLines = previous ? extractNewLogLines(prevInfo, currentInfo) : currentInfo.split("\n");
-  const filtered = newLines.filter((line) => line.trim().length > 0);
-  if (filtered.length === 0) {
-    return;
+  const visibleEvents = newLines.map(parseVisibleEvent).filter(Boolean);
+  const wasNearBottom =
+    latestLogEl.scrollHeight - latestLogEl.scrollTop - latestLogEl.clientHeight < 24;
+  let appendedCount = 0;
+  visibleEvents.forEach((event) => {
+    if (appendVisibleLogEntry(event)) {
+      appendedCount += 1;
+    }
+  });
+  if (appendedCount > 0 && wasNearBottom) {
+    latestLogEl.scrollTop = latestLogEl.scrollHeight;
   }
-  const stamp = `[T${current.timestep ?? "?"}] [${current.current_phase ?? "unknown"}]`;
-  if (latestLogEl.textContent === "No data yet.") {
-    latestLogEl.textContent = `${stamp}\n${filtered.join("\n")}`;
-  } else {
-    latestLogEl.textContent += `\n\n${stamp}\n${filtered.join("\n")}`;
-  }
-  latestLogEl.scrollTop = latestLogEl.scrollHeight;
 }
 
 function parseMeetingMessages(playerInfo) {
@@ -534,26 +809,53 @@ function parseMeetingMessages(playerInfo) {
       timestep: match[1] || "",
       phase: match[2] || "meeting",
       player: match[3].trim(),
-      text: match[4].trim() || "...",
+      text: normalizeMeetingText(match[4].trim() || "..."),
     });
   });
   return messages;
 }
 
-function appendMeetingMessage(message, isHuman) {
-  const groupId = `group-${message.player.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9:-]/g, "")}`;
-  let group = meetingFeed.querySelector(`[data-group-id="${groupId}"]`);
-  if (!group) {
-    group = document.createElement("div");
-    group.className = `meeting-group${isHuman ? " human" : ""}`;
-    group.dataset.groupId = groupId;
-
-    const speaker = document.createElement("div");
-    speaker.className = "speaker";
-    speaker.textContent = message.player;
-    group.appendChild(speaker);
-    meetingFeed.appendChild(group);
+function normalizeMeetingText(text) {
+  let normalized = String(text || "").trim();
+  if (!normalized) {
+    return "...";
   }
+
+  const actionMarkers = [...normalized.matchAll(/\[Action\]/gi)];
+  if (actionMarkers.length > 0) {
+    const last = actionMarkers[actionMarkers.length - 1];
+    normalized = normalized.slice(last.index + last[0].length).trim();
+  }
+
+  normalized = normalized.replace(/^\s*\**\s*SPEAK\s*\**\s*:?\s*/i, "");
+  normalized = normalized.replace(/^\*+\s*:?\s*/, "");
+
+  const leakMarker = normalized.search(/\n\s*\[(Reasoning|Thinking Process)\]\s*/i);
+  if (leakMarker >= 0) {
+    normalized = normalized.slice(0, leakMarker).trim();
+  }
+
+  if (normalized.startsWith('"') && normalized.endsWith('"') && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  if (normalized.startsWith("'") && normalized.endsWith("'") && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized || "...";
+}
+
+function appendMeetingMessage(message, isHuman) {
+  const group = document.createElement("div");
+  group.className = `meeting-group${isHuman ? " human" : ""}`;
+  const speakerColor = colorHexFromPlayerName(message.player);
+  group.classList.add("tinted");
+  group.style.setProperty("--player-tint-bg", hexToRgba(speakerColor, 0.14));
+  group.style.setProperty("--player-tint-border", hexToRgba(speakerColor, 0.42));
+
+  const speaker = document.createElement("div");
+  speaker.className = "speaker";
+  speaker.textContent = message.player;
+  group.appendChild(speaker);
 
   const msgEl = document.createElement("div");
   msgEl.className = "meeting-msg";
@@ -561,6 +863,7 @@ function appendMeetingMessage(message, isHuman) {
     ? `T${message.timestep}: ${message.text}`
     : message.text;
   group.appendChild(msgEl);
+  meetingFeed.appendChild(group);
 }
 
 function updateMeetingPanel(previous, current) {
@@ -573,58 +876,74 @@ function updateMeetingPanel(previous, current) {
   let messages = [];
   if (Array.isArray(current.meeting_messages) && current.meeting_messages.length > 0) {
     messages = current.meeting_messages.map((entry) => ({
+      id: entry.id ?? null,
       timestep: entry.timestep ?? "",
+      round: entry.round ?? "",
       phase: "meeting",
       player: entry.player,
-      text: entry.text,
+      text: normalizeMeetingText(String(entry.text || "").trim() || "..."),
     }));
   } else {
     messages = parseMeetingMessages(current.player_info || "");
   }
+  const wasNearBottom =
+    meetingFeed.scrollHeight - meetingFeed.scrollTop - meetingFeed.clientHeight < 24;
+  let appendedCount = 0;
   messages.forEach((message) => {
-    const key = `${message.timestep}|${message.player}|${message.text}`;
+    const key =
+      message.id ||
+      `${message.timestep}|${message.round ?? ""}|${message.player}|${message.text}`;
     if (seenMeetingMessages.has(key)) {
       return;
     }
     seenMeetingMessages.add(key);
     appendMeetingMessage(message, message.player === current.human_player_name);
+    appendedCount += 1;
   });
 
-  if (messages.length > 0) {
-    meetingFeed.scrollTo({ top: meetingFeed.scrollHeight, behavior: "smooth" });
+  if (appendedCount > 0 && wasNearBottom) {
+    meetingFeed.scrollTop = meetingFeed.scrollHeight;
   }
 }
 
 function parseTaskEventLine(line, current) {
+  const normalized = String(line || "").replace(/^\d+\.\s*/, "").trim();
   const observerPattern = /Timestep\s+(\d+):\s*\[task\]\s*(Player\s+\d+:\s*[^\s]+)\s+Seemingly doing task/i;
   const selfPattern = /Timestep\s+(\d+):\s*\[task phase\]\s*Seemingly doing task/i;
 
-  const observerMatch = line.match(observerPattern);
+  const observerMatch = normalized.match(observerPattern);
   if (observerMatch) {
     return {
       key: `${observerMatch[1]}|${observerMatch[2]}|seemingly-doing-task`,
       text: `T${observerMatch[1]}: ${observerMatch[2]} seemingly doing task`,
+      tintHex: colorHexFromPlayerName(observerMatch[2]),
     };
   }
 
-  const selfMatch = line.match(selfPattern);
+  const selfMatch = normalized.match(selfPattern);
   if (selfMatch) {
     const playerName = current.current_player || "Unknown player";
     return {
       key: `${selfMatch[1]}|${playerName}|seemingly-doing-task`,
       text: `T${selfMatch[1]}: ${playerName} seemingly doing task`,
+      tintHex: colorHexFromPlayerName(playerName),
     };
   }
 
   return null;
 }
 
-function appendTaskEvent(text) {
+function appendTaskEvent(text, tintHex = null) {
   if (taskFeed.textContent.trim() === "No task actions yet.") {
     taskFeed.textContent = "";
   }
   const item = document.createElement("div");
   item.className = "task-event";
+  if (tintHex) {
+    item.classList.add("tinted");
+    item.style.setProperty("--player-tint-bg", hexToRgba(tintHex, 0.14));
+    item.style.setProperty("--player-tint-border", hexToRgba(tintHex, 0.42));
+  }
   item.textContent = text;
   taskFeed.appendChild(item);
 }
@@ -638,15 +957,16 @@ function updateTaskFeed(previous, current) {
   const newLines = previous ? extractNewLogLines(prevInfo, currentInfo) : currentInfo.split("\n");
   newLines.forEach((rawLine) => {
     const line = String(rawLine || "").trim();
-    if (!line.includes("Seemingly doing task")) {
+    const normalized = line.replace(/^\d+\.\s*/, "").trim();
+    if (!normalized.includes("Seemingly doing task")) {
       return;
     }
-    const event = parseTaskEventLine(line, current);
+    const event = parseTaskEventLine(normalized, current);
     if (!event || seenTaskEvents.has(event.key)) {
       return;
     }
     seenTaskEvents.add(event.key);
-    appendTaskEvent(event.text);
+    appendTaskEvent(event.text, event.tintHex || null);
   });
   if (taskFeed.children.length > 0) {
     taskFeed.scrollTop = taskFeed.scrollHeight;
@@ -694,9 +1014,19 @@ async function createGame() {
     gameId = response.game_id;
     previousState = null;
     seenMeetingMessages.clear();
+    seenVisibleLogKeys.clear();
+    hiddenAliasByName.clear();
+    hiddenAliasCounter = 1;
+    playerState.clear();
+    playerTokenEls.clear();
+    lastActiveRoom = null;
+    initMapSkeleton();
     meetingFeed.innerHTML = "";
     seenTaskEvents.clear();
     taskFeed.textContent = "No task actions yet.";
+    latestLogEl.textContent = "No visible events yet.";
+    missionBriefEl.textContent = "No mission briefing captured yet.";
+    missionBriefCaptured = false;
     appendStatusLine(`Game created (game_id=${gameId}). Polling state...`);
     await pollGameState();
     pollTimer = setInterval(pollGameState, 1000);
@@ -769,6 +1099,12 @@ async function submitAction(actionIndex, speechText) {
 }
 
 createGameBtn.addEventListener("click", createGame);
+tabLiveLogsBtn.addEventListener("click", () => setActiveJournalTab("live-logs"));
+tabMissionBriefBtn.addEventListener("click", () => setActiveJournalTab("mission-brief"));
+tabNotesBtn.addEventListener("click", () => setActiveJournalTab("notes"));
+notesBoxEl.addEventListener("input", () => {
+  window.localStorage.setItem(PLAYER_NOTES_STORAGE_KEY, notesBoxEl.value);
+});
 
 submitSpeechBtn.addEventListener("click", async () => {
   clearError();
@@ -787,3 +1123,5 @@ submitSpeechBtn.addEventListener("click", async () => {
 });
 
 initMapSkeleton();
+setActiveJournalTab("live-logs");
+loadNotes();
