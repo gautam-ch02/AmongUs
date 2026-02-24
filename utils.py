@@ -4,6 +4,9 @@ from functools import reduce
 from typing import List, Dict
 import pandas as pd
 import os
+from datetime import datetime
+import platform
+import sys
 
 
 def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS):
@@ -37,8 +40,32 @@ def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS
         experiment_file.write(f"Experiment index: {next_index}\n")
 
     os.environ["EXPERIMENT_PATH"] = experiment_path
+    os.environ["EXPERIMENT_NAME"] = experiment_name
     os.environ["STREAMLIT"] = str(DEFAULT_ARGS.get("streamlit", False))
     os.environ["EXPERIMENT_INDEX"] = str(next_index)
+
+    # Parallel structured logging track (v1) that does not replace legacy logs.
+    structured_v1_path = os.path.join(experiment_path, "structured-v1")
+    os.makedirs(structured_v1_path, exist_ok=True)
+    os.environ["EXPERIMENT_PATH_STRUCTURED_V1"] = structured_v1_path
+
+    run_record = {
+        "schema_version": "v1",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "run_id": f"{experiment_name}",
+        "experiment_path": experiment_path,
+        "commit_hash": COMMIT_HASH,
+        "date": DATE,
+        "experiment_index": next_index,
+        "args": DEFAULT_ARGS,
+        "runtime": {
+            "python_version": sys.version,
+            "platform": platform.platform(),
+        },
+    }
+    with open(os.path.join(structured_v1_path, "runs.jsonl"), "a", encoding="utf-8") as f:
+        json.dump(run_record, f, separators=(",", ": "))
+        f.write("\n")
     
     return experiment_name
 

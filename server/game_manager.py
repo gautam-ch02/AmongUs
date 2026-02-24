@@ -268,12 +268,17 @@ class GameManager:
             human_state = human_agent.get_current_state_for_web()
             current_step = human_state.get("current_step")
             raw_actions = human_state.get("available_actions") or []
+            monitor_rooms = sorted(list(getattr(game.map, "ship_map", {}).nodes)) if hasattr(game, "map") else []
             for idx, action in enumerate(raw_actions):
+                action_name = action.get("name", "")
+                requires_location = bool(action.get("requires_location", False))
                 available_actions.append(
                     {
                         "index": idx,
-                        "name": action.get("name", ""),
+                        "name": action_name,
                         "requires_message": bool(action.get("requires_message", False)),
+                        "requires_location": requires_location,
+                        "location_options": monitor_rooms if requires_location else [],
                     }
                 )
 
@@ -295,6 +300,9 @@ class GameManager:
             "is_human_turn": is_human_turn,
             "human_player_name": human_agent.player.name if human_agent else None,
             "human_player_identity": human_agent.player.identity if human_agent else None,
+            "human_impostor_teammates": (
+                getattr(human_agent, "known_impostor_teammates", []) if human_agent else []
+            ),
             "current_step": current_step,
             "player_info": player_info,
             "available_actions": available_actions,
@@ -302,7 +310,13 @@ class GameManager:
             "meeting_messages": meeting_messages,
         }
 
-    def submit_human_action(self, game_id: int, action_index: int, speech_text: Optional[str]) -> None:
+    def submit_human_action(
+        self,
+        game_id: int,
+        action_index: int,
+        speech_text: Optional[str],
+        monitor_room: Optional[str] = None,
+    ) -> None:
         record = self._records.get(game_id)
         if record is None:
             raise KeyError(f"Unknown game_id={game_id}")
@@ -321,5 +335,9 @@ class GameManager:
         if action_index < 0 or action_index >= len(current_actions):
             raise ValueError(f"action_index out of range: {action_index}")
 
-        payload = {"action_index": action_index, "message": speech_text or ""}
+        payload = {
+            "action_index": action_index,
+            "message": speech_text or "",
+            "monitor_room": monitor_room or "",
+        }
         future.set_result(payload)

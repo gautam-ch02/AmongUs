@@ -5,6 +5,7 @@ import time
 import numpy as np
 import json
 import os
+from datetime import datetime
 
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
 from amongagents.agent.neutral_prompts import (
@@ -85,6 +86,19 @@ class AmongUs:
         self.all_phases = ["meeting", "task"]
         self.summary_json = {f"Game {game_index}": {"config": game_config}}
         self.list_of_impostors = []
+
+    def _append_structured_record(self, filename: str, payload: dict):
+        structured_dir = os.getenv("EXPERIMENT_PATH_STRUCTURED_V1")
+        if not structured_dir:
+            return
+        try:
+            os.makedirs(structured_dir, exist_ok=True)
+            with open(os.path.join(structured_dir, filename), "a", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ": "))
+                f.write("\n")
+        except Exception:
+            # Do not break gameplay due to logging failures.
+            pass
 
     def initialize_game(self):
         # reset game state
@@ -167,7 +181,7 @@ class AmongUs:
                 "Random": RandomAgent,
             }
             self.agents = []
-            for i, player in enumerate(self.players):
+        for i, player in enumerate(self.players):
                 if self.include_human and i == random_idx:
                     # Create HumanAgent with game_id set to game_index
                     human_agent = HumanAgent(player, game_index=self.game_index)
@@ -195,6 +209,13 @@ class AmongUs:
                     "tasks": [task.name for task in player.tasks],
                 }
 
+        # Ensure human impostor is aware of their teammate impostor(s).
+        all_impostors = [p.name for p in self.players if p.identity == "Impostor"]
+        for agent in self.agents:
+            if isinstance(agent, HumanAgent) and agent.player.identity == "Impostor":
+                teammates = [name for name in all_impostors if name != agent.player.name]
+                agent.known_impostor_teammates = teammates
+
     def report_winner(self, winner):
         winner_reason_map = {
             1: "Impostors win! (Crewmates being outnumbered or tied to impostors))",
@@ -215,6 +236,21 @@ class AmongUs:
         with open(summary_path, "a") as f:
             json.dump(self.summary_json, f, separators=(",", ": "))
             f.write("\n")
+
+        self._append_structured_record(
+            "outcomes_v1.jsonl",
+            {
+                "schema_version": "v1",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+                "game_index": self.game_index,
+                "winner": winner,
+                "winner_reason": winner_reason_map[winner],
+                "timestep": self.timestep,
+                "num_players": self.game_config.get("num_players"),
+                "num_impostors": self.game_config.get("num_impostors"),
+            },
+        )
 
         return winner
 
@@ -384,6 +420,20 @@ class AmongUs:
             }
             print("== No one was voted out ==")
         self.important_activity_log.append(import_event)
+        self._append_structured_record(
+            "events_v1.jsonl",
+            {
+                "schema_version": "v1",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+                "game_index": self.game_index,
+                "event_type": "voteout",
+                "timestep": self.timestep,
+                "phase": self.current_phase,
+                "round": round,
+                "details": str(import_event.get("action")),
+            },
+        )
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
         self.votes = {}
@@ -423,6 +473,35 @@ class AmongUs:
                 "player": player,
             }
         self.activity_log.append(record)
+        action_text = ""
+        if hasattr(action, "action_text"):
+            try:
+                action_text = action.action_text()
+            except Exception:
+                action_text = str(action)
+        else:
+            action_text = str(action)
+
+        event_payload = {
+            "schema_version": "v1",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+            "game_index": self.game_index,
+            "event_type": getattr(action, "name", "UNKNOWN"),
+            "timestep": record.get("timestep"),
+            "phase": record.get("phase"),
+            "round": record.get("round"),
+            "actor": getattr(player, "name", None),
+            "actor_identity": getattr(player, "identity", None),
+            "actor_location": getattr(player, "location", None),
+            "action_repr": str(action),
+            "action_text": action_text,
+            "target": getattr(getattr(action, "other_player", None), "name", None),
+            "from_location": getattr(action, "current_location", None),
+            "to_location": getattr(action, "new_location", None),
+            "additional_info": additional_info,
+        }
+        self._append_structured_record("events_v1.jsonl", event_payload)
         # print(record)
         # print('.', end='', flush=True)
         self.message_system.route_real_time_message(self, record)

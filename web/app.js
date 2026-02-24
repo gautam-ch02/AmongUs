@@ -60,6 +60,25 @@ const ROOM_COORDS = {
   Unknown: { x: 89, y: 11 },
 };
 
+const ROOM_PATHS = [
+  ["Cafeteria", "Weapons"],
+  ["Weapons", "O2"],
+  ["O2", "Navigation"],
+  ["Navigation", "Shields"],
+  ["Shields", "Communications"],
+  ["Communications", "Storage"],
+  ["Storage", "Cafeteria"],
+  ["Storage", "Admin"],
+  ["Storage", "Electrical"],
+  ["Electrical", "Lower Engine"],
+  ["Lower Engine", "Reactor"],
+  ["Lower Engine", "Security"],
+  ["Security", "Reactor"],
+  ["Security", "Upper Engine"],
+  ["Upper Engine", "Cafeteria"],
+  ["Upper Engine", "Medbay"],
+];
+
 const COLOR_MAP = {
   red: "#ff5f56",
   blue: "#59a6ff",
@@ -105,6 +124,9 @@ const panelNotesEl = document.getElementById("panel-notes");
 const speechBox = document.getElementById("speech-box");
 const speechTextInput = document.getElementById("speech-text");
 const submitSpeechBtn = document.getElementById("submit-speech-btn");
+const monitorBox = document.getElementById("monitor-box");
+const monitorRoomSelect = document.getElementById("monitor-room");
+const submitMonitorBtn = document.getElementById("submit-monitor-btn");
 
 const meetingPanel = document.getElementById("meeting-panel");
 const meetingFeed = document.getElementById("meeting-feed");
@@ -121,6 +143,25 @@ function initMapSkeleton() {
 
   const overlay = document.createElement("div");
   overlay.className = "map-overlay";
+  const pathLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  pathLayer.setAttribute("class", "map-path-layer");
+  pathLayer.setAttribute("viewBox", "0 0 100 100");
+  pathLayer.setAttribute("preserveAspectRatio", "none");
+
+  ROOM_PATHS.forEach(([fromRoom, toRoom]) => {
+    const from = ROOM_COORDS[fromRoom];
+    const to = ROOM_COORDS[toRoom];
+    if (!from || !to) {
+      return;
+    }
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    path.setAttribute("x1", String(from.x));
+    path.setAttribute("y1", String(from.y));
+    path.setAttribute("x2", String(to.x));
+    path.setAttribute("y2", String(to.y));
+    path.setAttribute("class", "room-path");
+    pathLayer.appendChild(path);
+  });
 
   ROOM_ORDER.forEach((roomName) => {
     const anchor = document.createElement("div");
@@ -143,6 +184,7 @@ function initMapSkeleton() {
     roomPlayerContainers.set(roomName, playersEl);
   });
 
+  mapStage.appendChild(pathLayer);
   mapStage.appendChild(overlay);
   mapGrid.appendChild(mapStage);
 }
@@ -217,6 +259,10 @@ function hideSpeechInput() {
   selectedAction = null;
   speechTextInput.value = "";
   speechBox.classList.add("hidden");
+  if (monitorRoomSelect) {
+    monitorRoomSelect.innerHTML = "";
+  }
+  monitorBox.classList.add("hidden");
 }
 
 function setActionButtonsEnabled(enabled) {
@@ -232,7 +278,10 @@ function clearActionButtons() {
 
 function buildActionSignature(actions) {
   return actions
-    .map((action) => `${action.index}|${action.name}|${action.requires_message ? 1 : 0}`)
+    .map(
+      (action) =>
+        `${action.index}|${action.name}|${action.requires_message ? 1 : 0}|${action.requires_location ? 1 : 0}`
+    )
     .join("||");
 }
 
@@ -611,10 +660,30 @@ function renderActionButtons(current) {
       if (action.requires_message) {
         selectedAction = action;
         speechBox.classList.remove("hidden");
+        monitorBox.classList.add("hidden");
         waitingMessageEl.textContent = "Enter speech text, then submit.";
         speechTextInput.focus();
+      } else if (action.requires_location) {
+        selectedAction = action;
+        speechBox.classList.add("hidden");
+        monitorBox.classList.remove("hidden");
+        monitorRoomSelect.innerHTML = "";
+        const options = Array.isArray(action.location_options)
+          ? action.location_options
+          : [];
+        options.forEach((room) => {
+          const option = document.createElement("option");
+          option.value = room;
+          option.textContent = room;
+          monitorRoomSelect.appendChild(option);
+        });
+        waitingMessageEl.textContent = "Select a room to monitor, then submit.";
+        if (monitorRoomSelect.options.length > 0) {
+          monitorRoomSelect.selectedIndex = 0;
+        }
+        monitorRoomSelect.focus();
       } else {
-        await submitAction(action.index, "");
+        await submitAction(action.index, "", "");
       }
     });
     actionsEl.appendChild(button);
@@ -735,7 +804,7 @@ function extractSection(text, header, nextHeader) {
   return content.trim();
 }
 
-function extractMissionBrief(playerInfo, humanIdentity) {
+function extractMissionBrief(playerInfo, humanIdentity, impostorTeammates = []) {
   const locationSection = extractSection(playerInfo, "Current Location:", "Observation history:");
   const tasksSection = extractSection(playerInfo, "Your Assigned Tasks:", "Available actions:");
   if (!tasksSection) {
@@ -745,6 +814,12 @@ function extractMissionBrief(playerInfo, humanIdentity) {
   const lines = [];
   if (humanIdentity) {
     lines.push(`Role: ${humanIdentity}`);
+    if (String(humanIdentity).toLowerCase() === "impostor") {
+      const teammates = Array.isArray(impostorTeammates)
+        ? impostorTeammates.filter((name) => String(name || "").trim().length > 0)
+        : [];
+      lines.push(`Impostor Teammates: ${teammates.length > 0 ? teammates.join(", ") : "None"}`);
+    }
     lines.push("");
   }
   if (locationSection) {
@@ -762,7 +837,8 @@ function captureMissionBrief(current) {
   }
   const brief = extractMissionBrief(
     current.player_info || "",
-    current.human_player_identity || ""
+    current.human_player_identity || "",
+    current.human_impostor_teammates || []
   );
   if (!brief) {
     return;
@@ -1057,7 +1133,7 @@ async function pollGameState() {
   }
 }
 
-async function submitAction(actionIndex, speechText) {
+async function submitAction(actionIndex, speechText = "", monitorRoom = "") {
   if (gameId === null) {
     showError("No active game. Create a game first.");
     return;
@@ -1085,6 +1161,7 @@ async function submitAction(actionIndex, speechText) {
         game_id: gameId,
         action_index: actionIndex,
         speech_text: speechText,
+        monitor_room: monitorRoom,
       }),
     });
     appendStatusLine(`Action ${actionIndex} submitted. Waiting for next state...`);
@@ -1120,6 +1197,24 @@ submitSpeechBtn.addEventListener("click", async () => {
   }
 
   await submitAction(selectedAction.index, speechText);
+});
+
+submitMonitorBtn.addEventListener("click", async () => {
+  clearError();
+  if (!selectedAction) {
+    showError("Select VIEW MONITOR first.");
+    return;
+  }
+  if (!selectedAction.requires_location) {
+    showError("Selected action does not require a room.");
+    return;
+  }
+  const monitorRoom = (monitorRoomSelect.value || "").trim();
+  if (!monitorRoom) {
+    showError("Select a room to monitor.");
+    return;
+  }
+  await submitAction(selectedAction.index, "", monitorRoom);
 });
 
 initMapSkeleton();

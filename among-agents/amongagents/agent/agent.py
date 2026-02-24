@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import Any, List, Dict, Tuple, Optional
 import aiohttp
+from aiohttp import ClientTimeout
 import time
 import numpy as np
 import requests
@@ -58,6 +59,7 @@ class LLMAgent(Agent):
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.api_error_log_path = None
         self.api_call_log_path = None
+        self.structured_v1_path = os.getenv("EXPERIMENT_PATH_STRUCTURED_V1")
         self.api_call_counter = 0
         experiment_path = os.getenv("EXPERIMENT_PATH")
         if experiment_path:
@@ -71,6 +73,18 @@ class LLMAgent(Agent):
         self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
         self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
         self.game_index = game_index
+
+    def _log_structured_record(self, filename: str, payload: Dict[str, Any]) -> None:
+        if not self.structured_v1_path:
+            return
+        try:
+            path = os.path.join(self.structured_v1_path, filename)
+            with open(path, "a", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ": "))
+                f.write("\n")
+        except Exception:
+            # Never break gameplay due to structured logging failures.
+            pass
 
     def log_api_error(self, error_type, details):
         if not self.api_error_log_path:
@@ -137,6 +151,53 @@ class LLMAgent(Agent):
             message = message[1:-1].strip()
         return message if message else "..."
 
+    def _extract_witnessed_kills(self, all_info: str) -> List[Dict[str, str]]:
+        kills: List[Dict[str, str]] = []
+        for line in str(all_info or "").split("\n"):
+            text = line.strip()
+            if not text:
+                continue
+            # Supports both "Timestep..." and "1. Timestep..." formats.
+            match = re.search(
+                r"(?:\d+\.\s*)?Timestep\s+(\d+):\s*\[[^\]]+\]\s*(Player\s+\d+:\s+[^\s]+)\s+KILL\s+(Player\s+\d+:\s+[^\s]+)",
+                text,
+                flags=re.IGNORECASE,
+            )
+            if not match:
+                continue
+            kills.append(
+                {
+                    "timestep": match.group(1),
+                    "killer": match.group(2),
+                    "victim": match.group(3),
+                }
+            )
+        return kills
+
+    def _format_structured_evidence(self, kills: List[Dict[str, str]]) -> str:
+        if not kills:
+            return "Witnessed kills: none"
+        lines = ["Witnessed kills (highest-priority evidence):"]
+        for idx, item in enumerate(kills[-3:], start=1):
+            lines.append(
+                f"{idx}. Timestep {item['timestep']}: {item['killer']} KILL {item['victim']}"
+            )
+        return "\n".join(lines)
+
+    def _find_vote_action_for_player(self, available_actions, target_player_name: str):
+        target = str(target_player_name or "").strip()
+        if not target:
+            return None
+        for action in available_actions:
+            if getattr(action, "name", "") != "VOTE":
+                continue
+            other = getattr(action, "other_player", None)
+            if other is not None and getattr(other, "name", "") == target:
+                return action
+            if target in repr(action):
+                return action
+        return None
+
     def log_api_call(
         self,
         success: bool,
@@ -150,6 +211,10 @@ class LLMAgent(Agent):
         latency_ms: Optional[float] = None,
         usage: Optional[Dict[str, Any]] = None,
         prompt_text: Optional[str] = None,
+        finish_reason: Optional[str] = None,
+        response_headers: Optional[Dict[str, Any]] = None,
+        timeout_seconds: Optional[float] = None,
+        max_tokens_requested: Optional[int] = None,
     ) -> None:
         if not self.api_call_log_path:
             return
@@ -176,10 +241,57 @@ class LLMAgent(Agent):
                 "error_details": self._truncate_text(error_details),
                 "prompt_preview": self._truncate_text(prompt_text, max_chars=300),
                 "usage": usage or {},
+                "finish_reason": finish_reason,
+                "response_headers": response_headers or {},
+                "timeout_seconds": timeout_seconds,
+                "max_tokens_requested": max_tokens_requested,
             }
             with open(self.api_call_log_path, "a") as f:
                 json.dump(payload, f, separators=(",", ": "))
                 f.write("\n")
+
+            usage_data = usage or {}
+            prompt_tokens = usage_data.get("prompt_tokens")
+            completion_tokens = usage_data.get("completion_tokens")
+            total_tokens = usage_data.get("total_tokens")
+            token_limit_hit = finish_reason == "length" or (
+                isinstance(response_text, str) and "maximum context length" in response_text.lower()
+            ) or (
+                isinstance(error_details, str) and "maximum context length" in error_details.lower()
+            )
+            structured_payload = {
+                "schema_version": "v1",
+                "timestamp": str(datetime.now()),
+                "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+                "game_index": self.game_index,
+                "step": step,
+                "phase": phase,
+                "request_id": f"{self.game_index}-{self.player.name}-{self.api_call_counter}",
+                "agent": {
+                    "name": self.player.name,
+                    "identity": self.player.identity,
+                    "location": self.player.location,
+                },
+                "provider": "openrouter",
+                "model": self.model,
+                "attempt": attempt,
+                "success": bool(success),
+                "http_status": http_status,
+                "latency_ms": round(latency_ms, 2) if latency_ms is not None else None,
+                "finish_reason": finish_reason,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "token_limit_hit": bool(token_limit_hit),
+                "error_type": error_type,
+                "error_details": self._truncate_text(error_details),
+                "timeout_seconds": timeout_seconds,
+                "max_tokens_requested": max_tokens_requested,
+                "prompt_preview": self._truncate_text(prompt_text, max_chars=500),
+                "response_preview": self._truncate_text(response_text, max_chars=500),
+                "response_headers": response_headers or {},
+            }
+            self._log_structured_record("api_calls_v1.jsonl", structured_payload)
         except Exception:
             # Never break the game loop due to logging issues.
             pass
@@ -276,6 +388,33 @@ class LLMAgent(Agent):
             f.write("\n")
             f.flush()
 
+        self._log_structured_record(
+            "agent_turns_v1.jsonl",
+            {
+                "schema_version": "v1",
+                "timestamp": str(datetime.now()),
+                "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+                "game_index": self.game_index,
+                "step": step,
+                "agent": {
+                    "name": self.player.name,
+                    "identity": self.player.identity,
+                    "model": self.model,
+                    "location": self.player.location,
+                },
+                "prompt": {
+                    "phase": prompt.get("Phase") if isinstance(prompt, dict) else None,
+                    "all_info_preview": self._truncate_text(
+                        prompt.get("All Info") if isinstance(prompt, dict) else prompt, max_chars=1200
+                    ),
+                    "memory_preview": self._truncate_text(
+                        prompt.get("Memory") if isinstance(prompt, dict) else "", max_chars=400
+                    ),
+                },
+                "response_preview": self._truncate_text(original_response, max_chars=1200),
+            },
+        )
+
         print(".", end="", flush=True)
 
     async def send_request(self, messages, step: Optional[int] = None, phase: Optional[str] = None):
@@ -308,8 +447,11 @@ class LLMAgent(Agent):
             "repetition_penalty": 1,
             "top_k": 0,
         }
+        timeout_seconds = float(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "60"))
+        timeout = ClientTimeout(total=timeout_seconds)
+        max_tokens_requested = payload.get("max_tokens")
         
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             for attempt in range(10):
                 attempt_num = attempt + 1
                 start_time = time.time()
@@ -372,6 +514,10 @@ class LLMAgent(Agent):
                                 latency_ms=(time.time() - start_time) * 1000,
                                 usage=data.get("usage"),
                                 prompt_text=prompt_text,
+                                finish_reason=(data.get("choices", [{}])[0].get("finish_reason")),
+                                response_headers=dict(response.headers),
+                                timeout_seconds=timeout_seconds,
+                                max_tokens_requested=max_tokens_requested,
                             )
                             return response_text
                         else:
@@ -394,7 +540,42 @@ class LLMAgent(Agent):
                                 error_details=body,
                                 latency_ms=(time.time() - start_time) * 1000,
                                 prompt_text=prompt_text,
+                                response_headers=dict(response.headers),
+                                timeout_seconds=timeout_seconds,
+                                max_tokens_requested=max_tokens_requested,
                             )
+                except asyncio.TimeoutError as e:
+                    self.log_api_error("timeout_error", f"attempt={attempt_num}, error={e}")
+                    self.log_api_call(
+                        success=False,
+                        attempt=attempt_num,
+                        step=step,
+                        phase=phase,
+                        error_type="timeout_error",
+                        error_details=str(e),
+                        latency_ms=(time.time() - start_time) * 1000,
+                        prompt_text=prompt_text,
+                        timeout_seconds=timeout_seconds,
+                        max_tokens_requested=max_tokens_requested,
+                    )
+                    print(f"API request timed out. Retrying... ({attempt_num}/10) for {self.model}.")
+                    continue
+                except aiohttp.ClientConnectionError as e:
+                    self.log_api_error("connection_error", f"attempt={attempt_num}, error={e}")
+                    self.log_api_call(
+                        success=False,
+                        attempt=attempt_num,
+                        step=step,
+                        phase=phase,
+                        error_type="connection_error",
+                        error_details=str(e),
+                        latency_ms=(time.time() - start_time) * 1000,
+                        prompt_text=prompt_text,
+                        timeout_seconds=timeout_seconds,
+                        max_tokens_requested=max_tokens_requested,
+                    )
+                    print(f"API connection failed. Retrying... ({attempt_num}/10) for {self.model}.")
+                    continue
                 except Exception as e:
                     self.log_api_error("exception", f"attempt={attempt_num}, error={e}")
                     self.log_api_call(
@@ -406,6 +587,8 @@ class LLMAgent(Agent):
                         error_details=str(e),
                         latency_ms=(time.time() - start_time) * 1000,
                         prompt_text=prompt_text,
+                        timeout_seconds=timeout_seconds,
+                        max_tokens_requested=max_tokens_requested,
                     )
                     print(f"API request failed. Retrying... ({attempt_num}/10) for {self.model}.")
                     continue
@@ -418,6 +601,8 @@ class LLMAgent(Agent):
                 error_details="Returning fallback response after max retries",
                 response_text="SPEAK: ...",
                 prompt_text=prompt_text,
+                timeout_seconds=timeout_seconds,
+                max_tokens_requested=max_tokens_requested,
             )
             return 'SPEAK: ...'
 
@@ -433,15 +618,26 @@ class LLMAgent(Agent):
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
+        witnessed_kills = self._extract_witnessed_kills(all_info)
+        structured_evidence = self._format_structured_evidence(witnessed_kills)
         # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
         phase = "Meeting phase" if len(available_actions) == 1 or all(a.name == "VOTE" for a in available_actions) else "Task phase"
+        hard_rule = ""
+        if phase == "Meeting phase" and witnessed_kills:
+            latest_kill = witnessed_kills[-1]
+            hard_rule = (
+                "\n\nHard rule for this turn:\n"
+                f"- You directly witnessed {latest_kill['killer']} kill {latest_kill['victim']} at timestep {latest_kill['timestep']}.\n"
+                f"- In discussion: explicitly state this witnessed kill.\n"
+                f"- In voting: vote for {latest_kill['killer']} unless contradictory evidence is explicitly given."
+            )
 
         messages = [
             {"role": "system", "content": self.system_prompt},
             {
                 "role": "user",
-                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\
-                    \n\nPhase: {phase}. Return your output.",
+                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nStructured Evidence:\n{structured_evidence}\n\nMemory: {self.processed_memory}\
+                    \n\nPhase: {phase}. Return your output.{hard_rule}",
             },
         ]
         
@@ -449,8 +645,10 @@ class LLMAgent(Agent):
         full_prompt = {
             "Summarization": self.summarization,
             "All Info": all_info,
+            "Structured Evidence": structured_evidence,
             "Memory": self.processed_memory,
             "Phase": phase,
+            "Hard Rule": hard_rule.strip(),
         }
         
         response = await self.send_request(messages, step=timestep, phase=phase)
@@ -463,10 +661,36 @@ class LLMAgent(Agent):
             memory = match.group(1).strip()
             summarization = match.group(3).strip()
             output_action = match.group(5).strip()
+            if witnessed_kills and re.search(r"\bno\s+(observed\s+events?|memory|information).*\b", memory, flags=re.IGNORECASE):
+                latest_kill = witnessed_kills[-1]
+                memory = (
+                    f"Witnessed critical event: Timestep {latest_kill['timestep']} - "
+                    f"{latest_kill['killer']} KILL {latest_kill['victim']}."
+                )
             self.summarization = summarization
             self.processed_memory = memory
         else:
             output_action = response.strip()
+
+        # Deterministic safeguard for witnessed kills in meeting phase.
+        if phase == "Meeting phase" and witnessed_kills:
+            latest_kill = witnessed_kills[-1]
+            killer_name = latest_kill["killer"]
+            victim_name = latest_kill["victim"]
+
+            if all(a.name == "VOTE" for a in available_actions):
+                forced_vote = self._find_vote_action_for_player(available_actions, killer_name)
+                if forced_vote is not None:
+                    return forced_vote
+            elif len(available_actions) == 1 and getattr(available_actions[0], "name", "") == "SPEAK":
+                # If model output does not explicitly surface witnessed kill evidence, inject a concise statement.
+                raw_output = str(output_action or "")
+                if killer_name.lower() not in raw_output.lower() or "kill" not in raw_output.lower():
+                    available_actions[0].message = (
+                        f"I witnessed {killer_name} kill {victim_name} at timestep {latest_kill['timestep']}. "
+                        f"We should vote {killer_name}."
+                    )
+                    return available_actions[0]
 
         normalized_action_block = self._extract_action_block(output_action)
         for action in available_actions:
@@ -520,6 +744,8 @@ class HumanAgent(Agent):
         self.max_steps = 50  # Default value, will be updated from game config
         self.action_future = None  # Store the future as an instance variable
         self.condensed_memory = ""  # Store the condensed memory (scratchpad) between turns
+        self.pending_monitor_room = ""
+        self.known_impostor_teammates: List[str] = []
     
     def update_max_steps(self, max_steps):
         """Update the max_steps value from the game config."""
@@ -563,6 +789,7 @@ class HumanAgent(Agent):
                 chosen_action_data = await self.action_future
                 action_idx = chosen_action_data.get("action_index")
                 action_message = chosen_action_data.get("message")
+                monitor_room = chosen_action_data.get("monitor_room", "")
                 condensed_memory = chosen_action_data.get("condensed_memory", "")
                 thinking_process = chosen_action_data.get("thinking_process", "")
 
@@ -575,6 +802,8 @@ class HumanAgent(Agent):
                     selected_action = self.current_available_actions[0]
                 else:
                     selected_action = self.current_available_actions[action_idx]
+                if hasattr(selected_action, "name") and selected_action.name == "ViewMonitor":
+                    self.pending_monitor_room = str(monitor_room or "").strip()
 
                 # Format the response log to match LLMAgent format
                 response_log = ""
@@ -599,6 +828,8 @@ class HumanAgent(Agent):
                     elif hasattr(selected_action, 'message'): # Fallback to setting attribute
                         selected_action.message = action_message
                     response_log += f" {action_message}"
+                if hasattr(selected_action, "name") and selected_action.name == "ViewMonitor" and self.pending_monitor_room:
+                    response_log += f" @ {self.pending_monitor_room}"
 
                 # Update the prompt to not include "Waiting for human action via web interface"
                 full_prompt = {
@@ -707,14 +938,19 @@ class HumanAgent(Agent):
         for action in self.current_available_actions:
             action_str = str(action)
             requires_message = False
+            requires_location = False
             if hasattr(action, 'name'):
                  requires_message = action.name == "SPEAK"
+                 requires_location = action.name == "ViewMonitor"
             elif "SPEAK" in action_str:
                  requires_message = True
+            elif "VIEW MONITOR" in action_str.upper():
+                 requires_location = True
                  
             available_actions_web.append({
                 "name": action_str,
-                "requires_message": requires_message
+                "requires_message": requires_message,
+                "requires_location": requires_location,
             })
             
         return {
@@ -733,6 +969,10 @@ class HumanAgent(Agent):
         return response
 
     def choose_observation_location(self, map):
+        if self.pending_monitor_room:
+            room = self.pending_monitor_room
+            self.pending_monitor_room = ""
+            return room
         map_list = list(map)
         print("Please select the room you wish to observe:")
         for i, room in enumerate(map_list):

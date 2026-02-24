@@ -42,6 +42,7 @@ class HumanActionRequest(BaseModel):
     game_id: int
     action_index: int = Field(ge=0)
     speech_text: Optional[str] = ""
+    monitor_room: Optional[str] = ""
 
 
 @app.get("/")
@@ -78,6 +79,7 @@ async def human_action(request: HumanActionRequest):
             game_id=request.game_id,
             action_index=request.action_index,
             speech_text=request.speech_text,
+            monitor_room=request.monitor_room,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

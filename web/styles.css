@@ -101,6 +101,24 @@ body {
 .map-overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
+}
+
+.map-path-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.room-path {
+  stroke: rgba(120, 166, 212, 0.35);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-dasharray: 1.8 1.5;
+  filter: drop-shadow(0 0 1px rgba(67, 213, 255, 0.28));
 }
 
 .room-anchor {
@@ -151,18 +169,22 @@ body {
 }
 
 .player-token {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  width: 18px;
+  height: 24px;
+  border-radius: 9px 9px 7px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  color: #06131f;
-  font-size: 0.48rem;
+  color: rgba(6, 19, 31, 0.9);
+  font-size: 0.43rem;
   font-weight: 700;
   position: relative;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+  padding-bottom: 1px;
+  overflow: visible;
   transition: transform 220ms ease, opacity 180ms ease, box-shadow 220ms ease;
 }
 
@@ -175,9 +197,33 @@ body {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+.player-token::before {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 5px;
+  width: 10px;
+  height: 7px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #ecf7ff 0%, #b4d9f4 65%, #7eaecb 100%);
+  border: 1px solid rgba(6, 19, 31, 0.38);
+  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.12);
+}
+
+.player-token::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 9px;
+  width: 4px;
+  height: 8px;
+  border-radius: 3px 0 0 3px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .player-token .you-tag {
   position: absolute;
-  bottom: -9px;
+  bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--accent);
@@ -360,6 +406,35 @@ body {
 .task-event.tinted {
   background: linear-gradient(0deg, var(--player-tint-bg, rgba(15, 22, 33, 1)), #0f1621);
   border-color: var(--player-tint-border, #314458);
+}
+
+.faq-bottom-panel {
+  margin-top: 16px;
+}
+
+.faq-list {
+  display: grid;
+  gap: 8px;
+}
+
+.faq-list details {
+  border: 1px solid #314458;
+  border-radius: 8px;
+  background: #0f1621;
+  padding: 8px 10px;
+}
+
+.faq-list summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.faq-list p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .log-panel {
