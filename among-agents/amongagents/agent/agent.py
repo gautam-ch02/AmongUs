@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import hashlib
 from datetime import datetime
 from typing import Any, List, Dict, Tuple, Optional
 import aiohttp
@@ -73,6 +74,15 @@ class LLMAgent(Agent):
         self.log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs.json"
         self.compact_log_path = os.getenv("EXPERIMENT_PATH") + "/agent-logs-compact.json"
         self.game_index = game_index
+        self.system_prompt_hash = hashlib.sha256(self.system_prompt.encode("utf-8")).hexdigest()
+        self.model_settings = {
+            "temperature": self.temperature,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+            "repetition_penalty": 1,
+            "top_k": 0,
+        }
 
     def _log_structured_record(self, filename: str, payload: Dict[str, Any]) -> None:
         if not self.structured_v1_path:
@@ -150,6 +160,10 @@ class LLMAgent(Agent):
         if message.startswith("'") and message.endswith("'") and len(message) >= 2:
             message = message[1:-1].strip()
         return message if message else "..."
+
+    def _normalize_text(self, text: Any) -> str:
+        raw = str(text or "").strip().lower()
+        return re.sub(r"\s+", " ", raw)
 
     def _extract_witnessed_kills(self, all_info: str) -> List[Dict[str, str]]:
         kills: List[Dict[str, str]] = []
@@ -261,11 +275,14 @@ class LLMAgent(Agent):
             )
             structured_payload = {
                 "schema_version": "v1",
+                "rubric_version": "deception-v1",
                 "timestamp": str(datetime.now()),
                 "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
                 "game_index": self.game_index,
+                "game_id": f"{os.getenv('EXPERIMENT_NAME', os.path.basename(os.getenv('EXPERIMENT_PATH', '')))}:game:{self.game_index}",
                 "step": step,
                 "phase": phase,
+                "turn_id": f"{self.game_index}-t{step}-agent-{self.player.name}",
                 "request_id": f"{self.game_index}-{self.player.name}-{self.api_call_counter}",
                 "agent": {
                     "name": self.player.name,
@@ -289,7 +306,23 @@ class LLMAgent(Agent):
                 "max_tokens_requested": max_tokens_requested,
                 "prompt_preview": self._truncate_text(prompt_text, max_chars=500),
                 "response_preview": self._truncate_text(response_text, max_chars=500),
+                "raw_prompt_text": prompt_text or "",
+                "normalized_prompt_text": self._normalize_text(prompt_text),
+                "raw_response_text": response_text or "",
+                "normalized_response_text": self._normalize_text(response_text),
+                "prompt_char_count": len(str(prompt_text or "")),
+                "response_char_count": len(str(response_text or "")),
                 "response_headers": response_headers or {},
+                "model_provenance": {
+                    "provider": "openrouter",
+                    "model": self.model,
+                    "model_settings": self.model_settings,
+                    "system_prompt_hash": self.system_prompt_hash,
+                },
+                "audit_flags": {
+                    "missing_usage_tokens": prompt_tokens is None or completion_tokens is None,
+                    "token_limit_hit": bool(token_limit_hit),
+                },
             }
             self._log_structured_record("api_calls_v1.jsonl", structured_payload)
         except Exception:
@@ -392,10 +425,14 @@ class LLMAgent(Agent):
             "agent_turns_v1.jsonl",
             {
                 "schema_version": "v1",
+                "rubric_version": "deception-v1",
                 "timestamp": str(datetime.now()),
                 "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
                 "game_index": self.game_index,
+                "game_id": f"{os.getenv('EXPERIMENT_NAME', os.path.basename(os.getenv('EXPERIMENT_PATH', '')))}:game:{self.game_index}",
                 "step": step,
+                "turn_id": f"{self.game_index}-t{step}-agent-{self.player.name}",
+                "utterance_id": f"{self.game_index}-t{step}-agent-{self.player.name}-utterance-1",
                 "agent": {
                     "name": self.player.name,
                     "identity": self.player.identity,
@@ -410,6 +447,22 @@ class LLMAgent(Agent):
                     "memory_preview": self._truncate_text(
                         prompt.get("Memory") if isinstance(prompt, dict) else "", max_chars=400
                     ),
+                },
+                "raw_response_text": original_response,
+                "normalized_response_text": self._normalize_text(original_response),
+                "speak_message": self._extract_speak_message(original_response),
+                "normalized_speak_message": self._normalize_text(self._extract_speak_message(original_response)),
+                "response_char_count": len(str(original_response or "")),
+                "response_word_count": len(str(original_response or "").split()),
+                "intent_proxy": {
+                    "thinking_preview": self._truncate_text(
+                        re.sub(r"(?is)^.*?\[Thinking Process\](.*?)\[Action\].*$", r"\1", str(original_response or "")),
+                        max_chars=500,
+                    ),
+                    "system_prompt_hash": self.system_prompt_hash,
+                },
+                "audit_flags": {
+                    "missing_action_tag": "[Action]" not in str(original_response or ""),
                 },
                 "response_preview": self._truncate_text(original_response, max_chars=1200),
             },
@@ -746,6 +799,22 @@ class HumanAgent(Agent):
         self.condensed_memory = ""  # Store the condensed memory (scratchpad) between turns
         self.pending_monitor_room = ""
         self.known_impostor_teammates: List[str] = []
+        self.structured_v1_path = os.getenv("EXPERIMENT_PATH_STRUCTURED_V1")
+
+    def _log_structured_record(self, filename: str, payload: Dict[str, Any]) -> None:
+        if not self.structured_v1_path:
+            return
+        try:
+            path = os.path.join(self.structured_v1_path, filename)
+            with open(path, "a", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ": "))
+                f.write("\n")
+        except Exception:
+            pass
+
+    def _normalize_text(self, text: Any) -> str:
+        raw = str(text or "").strip().lower()
+        return re.sub(r"\s+", " ", raw)
     
     def update_max_steps(self, max_steps):
         """Update the max_steps value from the game config."""
@@ -1053,6 +1122,40 @@ class HumanAgent(Agent):
                 f.flush()
         except Exception as e:
             print(f"Error writing to log file: {e}") # Add error logging
+
+        self._log_structured_record(
+            "agent_turns_v1.jsonl",
+            {
+                "schema_version": "v1",
+                "rubric_version": "deception-v1",
+                "timestamp": str(datetime.now()),
+                "run_id": os.getenv("EXPERIMENT_NAME", os.path.basename(os.getenv("EXPERIMENT_PATH", ""))),
+                "game_index": self.game_index,
+                "game_id": f"{os.getenv('EXPERIMENT_NAME', os.path.basename(os.getenv('EXPERIMENT_PATH', '')))}:game:{self.game_index}",
+                "step": step,
+                "turn_id": f"{self.game_index}-t{step}-agent-{self.player.name}",
+                "utterance_id": f"{self.game_index}-t{step}-agent-{self.player.name}-utterance-1",
+                "agent": {
+                    "name": self.player.name,
+                    "identity": self.player.identity,
+                    "model": self.model,
+                    "location": self.player.location,
+                },
+                "prompt": {
+                    "phase": prompt.get("Phase") if isinstance(prompt, dict) else None,
+                    "all_info_preview": str(prompt.get("All Info", ""))[:1200] if isinstance(prompt, dict) else str(prompt)[:1200],
+                },
+                "raw_response_text": original_response,
+                "normalized_response_text": self._normalize_text(original_response),
+                "response_char_count": len(str(original_response or "")),
+                "response_word_count": len(str(original_response or "").split()),
+                "intent_proxy": {
+                    "thinking_preview": sections.get("Thinking Process", ""),
+                    "self_report_available": bool(sections.get("Thinking Process", "")),
+                },
+                "response_preview": str(original_response)[:1200],
+            },
+        )
 
         print(".", end="", flush=True)
 
