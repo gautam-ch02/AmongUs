@@ -23,6 +23,7 @@ const roomPlayerContainers = new Map();
 let missionBriefCaptured = false;
 const hiddenAliasByName = new Map();
 let hiddenAliasCounter = 1;
+let previousPhase = null;
 
 const ROOM_ORDER = [
   "Cafeteria",
@@ -98,6 +99,8 @@ const COLOR_MAP = {
 const createGameBtn = document.getElementById("create-game-btn");
 const createStatus = document.getElementById("create-status");
 const winnerBannerEl = document.getElementById("winner-banner");
+const soundToggleBtn = document.getElementById("sound-toggle-btn");
+const soundVolumeEl = document.getElementById("sound-volume");
 const errorBanner = document.getElementById("error-banner");
 const gameView = document.getElementById("game-view");
 const logView = document.getElementById("log-view");
@@ -136,6 +139,8 @@ const taskFeed = document.getElementById("task-feed");
 const seenTaskEvents = new Set();
 const PLAYER_NOTES_STORAGE_KEY = "amongus_player_notes";
 const API_BASE_STORAGE_KEY = "amongus_api_base_url";
+const SOUND_ENABLED_KEY = "amongus_sound_enabled";
+const SOUND_VOLUME_KEY = "amongus_sound_volume";
 
 const API_BASE_URL = (() => {
   const params = new URLSearchParams(window.location.search);
@@ -213,6 +218,91 @@ function initMapSkeleton() {
   mapStage.appendChild(pathLayer);
   mapStage.appendChild(overlay);
   mapGrid.appendChild(mapStage);
+}
+
+const audioState = {
+  ctx: null,
+  enabled: true,
+  volume: 0.35,
+};
+
+function ensureAudioContext() {
+  if (audioState.ctx) {
+    return audioState.ctx;
+  }
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) {
+    return null;
+  }
+  audioState.ctx = new Ctx();
+  return audioState.ctx;
+}
+
+function playTone({ freq = 440, duration = 0.12, type = "sine", startAt = 0, gain = 1 }) {
+  if (!audioState.enabled) {
+    return;
+  }
+  const ctx = ensureAudioContext();
+  if (!ctx) {
+    return;
+  }
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  amp.gain.value = 0.0001;
+  const now = ctx.currentTime + startAt;
+  const scaledGain = Math.max(0.0001, Math.min(1, audioState.volume * gain));
+  amp.gain.exponentialRampToValueAtTime(scaledGain, now + 0.01);
+  amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  osc.connect(amp);
+  amp.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + duration + 0.02);
+}
+
+function playSfx(name) {
+  if (!audioState.enabled) {
+    return;
+  }
+  if (name === "meeting-start") {
+    playTone({ freq: 523, duration: 0.08, type: "triangle", startAt: 0, gain: 0.8 });
+    playTone({ freq: 659, duration: 0.1, type: "triangle", startAt: 0.09, gain: 0.8 });
+    playTone({ freq: 784, duration: 0.12, type: "triangle", startAt: 0.2, gain: 0.9 });
+    return;
+  }
+  if (name === "message") {
+    playTone({ freq: 700, duration: 0.05, type: "sine", startAt: 0, gain: 0.45 });
+    return;
+  }
+  if (name === "game-over") {
+    playTone({ freq: 392, duration: 0.12, type: "square", startAt: 0, gain: 0.75 });
+    playTone({ freq: 330, duration: 0.12, type: "square", startAt: 0.13, gain: 0.75 });
+    playTone({ freq: 262, duration: 0.18, type: "square", startAt: 0.28, gain: 0.85 });
+  }
+}
+
+function loadSoundPrefs() {
+  const enabledRaw = window.localStorage.getItem(SOUND_ENABLED_KEY);
+  const volumeRaw = window.localStorage.getItem(SOUND_VOLUME_KEY);
+  if (enabledRaw !== null) {
+    audioState.enabled = enabledRaw === "true";
+  }
+  if (volumeRaw !== null) {
+    const parsed = Number(volumeRaw);
+    if (!Number.isNaN(parsed)) {
+      audioState.volume = Math.max(0, Math.min(1, parsed));
+    }
+  }
+  if (soundToggleBtn) {
+    soundToggleBtn.textContent = `Sound: ${audioState.enabled ? "On" : "Off"}`;
+  }
+  if (soundVolumeEl) {
+    soundVolumeEl.value = String(Math.round(audioState.volume * 100));
+  }
 }
 
 function showError(message) {
@@ -755,12 +845,14 @@ function updateWinnerBanner(current) {
   const finished = String(current.status || "") !== "running";
   if (!finished || current.winner == null) {
     winnerBannerEl.classList.add("hidden");
+    winnerBannerEl.classList.remove("shown");
     winnerBannerEl.textContent = "";
     return;
   }
   const winnerText = String(current.winner_reason || `Winner: ${current.winner}`);
   winnerBannerEl.textContent = `Game Over - ${winnerText}`;
   winnerBannerEl.classList.remove("hidden");
+  winnerBannerEl.classList.add("shown");
 }
 
 function extractNewLogLines(previousInfo, currentInfo) {
@@ -962,6 +1054,10 @@ function normalizeMeetingText(text) {
 
   normalized = normalized.replace(/^\s*\**\s*SPEAK\s*\**\s*:?\s*/i, "");
   normalized = normalized.replace(/^\*+\s*:?\s*/, "");
+  normalized = normalized.replace(/\[(Condensed Memory|Thinking Process|Action)\]/gi, "");
+  normalized = normalized.replace(/\bFINAL_SPEAK_MESSAGE\s*:\s*/gi, "");
+  normalized = normalized.replace(/\bFINAL_ACTION_INDEX\s*:\s*\d+\b/gi, "");
+  normalized = normalized.split(/\bFINAL_[A-Z_]+\s*:/i)[0].trim();
 
   const leakMarker = normalized.search(/\n\s*\[(Reasoning|Thinking Process)\]\s*/i);
   if (leakMarker >= 0) {
@@ -999,14 +1095,22 @@ function appendMeetingMessage(message, isHuman) {
     ? `T${message.timestep}: ${message.text}`
     : message.text;
   group.appendChild(msgEl);
+  group.classList.add("new-msg");
+  window.setTimeout(() => group.classList.remove("new-msg"), 380);
   meetingFeed.appendChild(group);
 }
 
 function updateMeetingPanel(previous, current) {
   const meeting = isMeetingPhase(current.current_phase);
+  const wasMeeting = isMeetingPhase(previous ? previous.current_phase : null);
   meetingPanel.classList.toggle("hidden", !meeting);
   if (!meeting) {
+    meetingPanel.classList.remove("revealed");
     return;
+  }
+  if (!wasMeeting) {
+    meetingPanel.classList.add("revealed");
+    playSfx("meeting-start");
   }
 
   let messages = [];
@@ -1035,6 +1139,7 @@ function updateMeetingPanel(previous, current) {
     }
     seenMeetingMessages.add(key);
     appendMeetingMessage(message, message.player === current.human_player_name);
+    playSfx("message");
     appendedCount += 1;
   });
 
@@ -1124,6 +1229,10 @@ function renderState(current) {
   updateLog(previousState, current);
 
   if (current.status !== "running") {
+    const wasRunning = previousState && String(previousState.status || "") === "running";
+    if (wasRunning) {
+      playSfx("game-over");
+    }
     stopPolling();
     hideSpeechInput();
     setActionButtonsEnabled(false);
@@ -1152,6 +1261,7 @@ async function createGame() {
 
     gameId = response.game_id;
     previousState = null;
+    previousPhase = null;
     winnerBannerEl.classList.add("hidden");
     winnerBannerEl.textContent = "";
     roleBannerEl.classList.add("hidden");
@@ -1244,6 +1354,23 @@ async function submitAction(actionIndex, speechText = "", monitorRoom = "") {
 }
 
 createGameBtn.addEventListener("click", createGame);
+if (soundToggleBtn) {
+  soundToggleBtn.addEventListener("click", () => {
+    audioState.enabled = !audioState.enabled;
+    window.localStorage.setItem(SOUND_ENABLED_KEY, String(audioState.enabled));
+    soundToggleBtn.textContent = `Sound: ${audioState.enabled ? "On" : "Off"}`;
+    if (audioState.enabled) {
+      playSfx("message");
+    }
+  });
+}
+if (soundVolumeEl) {
+  soundVolumeEl.addEventListener("input", () => {
+    const value = Number(soundVolumeEl.value || 0);
+    audioState.volume = Math.max(0, Math.min(1, value / 100));
+    window.localStorage.setItem(SOUND_VOLUME_KEY, String(audioState.volume));
+  });
+}
 tabLiveLogsBtn.addEventListener("click", () => setActiveJournalTab("live-logs"));
 tabMissionBriefBtn.addEventListener("click", () => setActiveJournalTab("mission-brief"));
 tabNotesBtn.addEventListener("click", () => setActiveJournalTab("notes"));
@@ -1288,3 +1415,4 @@ submitMonitorBtn.addEventListener("click", async () => {
 initMapSkeleton();
 setActiveJournalTab("live-logs");
 loadNotes();
+loadSoundPrefs();

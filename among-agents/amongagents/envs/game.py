@@ -556,6 +556,13 @@ class AmongUs:
                 "opportunity_to_deceive": False,
             },
         )
+        # Broadcast canonical voteout result to all players so meeting state updates are explicit in observations.
+        if len(players_with_max_votes) == 1:
+            voteout_message = f"Timestep {self.timestep}: [meeting] {player.name} was voted out."
+        else:
+            voteout_message = f"Timestep {self.timestep}: [meeting] No one was voted out."
+        for recipient in self.players:
+            self.message_system.send_message(recipient, voteout_message, info_type="action")
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
         self.votes = {}

@@ -13,6 +13,11 @@
         <div class="header-actions">
           <button id="create-game-btn" type="button">Create Game</button>
           <div id="create-status" class="muted">No game created.</div>
+          <button id="sound-toggle-btn" type="button" class="sound-btn">Sound: On</button>
+          <label for="sound-volume" class="sound-volume-label">
+            Vol
+            <input id="sound-volume" type="range" min="0" max="100" step="1" value="35" />
+          </label>
         </div>
         <div id="winner-banner" class="winner-banner hidden"></div>
         <div id="error-banner" class="error hidden"></div>

@@ -154,16 +154,29 @@ class LLMAgent(Agent):
         if not speak_match:
             return None
 
-        message = speak_match.group(1).strip()
-        if message.startswith('"') and message.endswith('"') and len(message) >= 2:
-            message = message[1:-1].strip()
-        if message.startswith("'") and message.endswith("'") and len(message) >= 2:
-            message = message[1:-1].strip()
+        message = self._sanitize_speak_payload(speak_match.group(1))
         return message if message else "..."
 
     def _normalize_text(self, text: Any) -> str:
         raw = str(text or "").strip().lower()
         return re.sub(r"\s+", " ", raw)
+
+    def _sanitize_speak_payload(self, message: Any) -> str:
+        text = str(message or "").strip()
+        if not text:
+            return ""
+        # Remove leaked control channels and section markers from speech payloads.
+        text = re.sub(r"\bFINAL_SPEAK_MESSAGE\s*:\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bFINAL_ACTION_INDEX\s*:\s*\d+\b", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\[(Condensed Memory|Thinking Process|Action)\]", "", text, flags=re.IGNORECASE)
+        # If another FINAL_* token leaks, cut payload before it.
+        text = re.split(r"\bFINAL_[A-Z_]+\s*:", text, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+        text = re.sub(r"\s+", " ", text).strip()
+        if text.startswith('"') and text.endswith('"') and len(text) >= 2:
+            text = text[1:-1].strip()
+        if text.startswith("'") and text.endswith("'") and len(text) >= 2:
+            text = text[1:-1].strip()
+        return text
 
     def _extract_witnessed_kills(self, all_info: str) -> List[Dict[str, str]]:
         kills: List[Dict[str, str]] = []
@@ -212,6 +225,30 @@ class LLMAgent(Agent):
             if norm not in seen:
                 seen.add(norm)
                 deduped.append(norm)
+        return deduped
+
+    def _extract_known_eliminated_players(self, all_info: str) -> List[str]:
+        names: List[str] = []
+        raw = str(all_info or "")
+        names.extend(self._extract_explicit_dead_players(raw))
+
+        for line in raw.split("\n"):
+            text = line.strip()
+            if not text:
+                continue
+            voted_match = re.search(r"(Player\s+\d+\s*:\s*[a-zA-Z]+)\s+was voted out", text, flags=re.IGNORECASE)
+            if voted_match:
+                names.append(re.sub(r"\s+", " ", voted_match.group(1).strip()))
+            kill_match = re.search(r"\bKILL\s+(Player\s+\d+\s*:\s*[a-zA-Z]+)", text, flags=re.IGNORECASE)
+            if kill_match:
+                names.append(re.sub(r"\s+", " ", kill_match.group(1).strip()))
+
+        deduped: List[str] = []
+        seen = set()
+        for name in names:
+            if name and name not in seen:
+                seen.add(name)
+                deduped.append(name)
         return deduped
 
     def _filter_witnessed_kills_for_meeting(self, kills: List[Dict[str, str]], alive_players: List[str]) -> List[Dict[str, str]]:
@@ -263,15 +300,31 @@ class LLMAgent(Agent):
     def _extract_final_speak_message(self, text: str) -> Optional[str]:
         if not text:
             return None
-        match = re.search(r"FINAL_SPEAK_MESSAGE\s*:\s*(.*)", text, flags=re.IGNORECASE)
+        match = re.search(
+            r"FINAL_SPEAK_MESSAGE\s*:\s*(.*?)(?=\bFINAL_[A-Z_]+\s*:|$)",
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
         if not match:
             return None
-        message = match.group(1).strip()
-        if message.startswith('"') and message.endswith('"') and len(message) >= 2:
-            message = message[1:-1].strip()
-        if message.startswith("'") and message.endswith("'") and len(message) >= 2:
-            message = message[1:-1].strip()
+        message = self._sanitize_speak_payload(match.group(1))
         return message or None
+
+    def _apply_meeting_call_guard(self, selected_action, available_actions, witnessed_kills) -> Any:
+        if selected_action is None:
+            return selected_action
+        if getattr(selected_action, "name", "") != "CALL MEETING":
+            return selected_action
+        # Keep report-dead-body behavior untouched.
+        if "REPORT DEAD BODY" in repr(selected_action):
+            return selected_action
+        # If no concrete witnessed-kill evidence, avoid emergency-meeting spam by preferring a non-meeting action.
+        if witnessed_kills:
+            return selected_action
+        for action in available_actions:
+            if getattr(action, "name", "") != "CALL MEETING":
+                return action
+        return selected_action
 
     def log_api_call(
         self,
@@ -734,7 +787,7 @@ class LLMAgent(Agent):
         all_info = self.player.all_info_prompt()
         witnessed_kills_all = self._extract_witnessed_kills(all_info)
         alive_players = self._extract_players_in_current_room(all_info)
-        eliminated_players = self._extract_explicit_dead_players(all_info)
+        eliminated_players = self._extract_known_eliminated_players(all_info)
         available_actions_text = "\n".join(
             f"{idx + 1}. {repr(action)}" for idx, action in enumerate(available_actions)
         )
@@ -766,6 +819,8 @@ class LLMAgent(Agent):
                     \n- Final line MUST be: FINAL_ACTION_INDEX: <number>.\
                     \n- If the selected action is SPEAK, also include FINAL_SPEAK_MESSAGE: <your message>.\
                     \n- Do not output an action not listed below.\
+                    \n- Do not discuss or target players listed in Eliminated Players.\
+                    \n- In task phase, avoid CALL MEETING unless you have concrete new evidence.\
                     \n\nAvailable actions (indexed):\n{available_actions_text}\n\nPhase: {phase}. Return your output.{hard_rule}",
             },
         ]
@@ -815,8 +870,8 @@ class LLMAgent(Agent):
                         or self._extract_speak_message(response)
                         or "..."
                     )
-                    chosen_action.message = speak_msg
-                return chosen_action
+                    chosen_action.message = self._sanitize_speak_payload(speak_msg) or "..."
+                return self._apply_meeting_call_guard(chosen_action, available_actions, witnessed_kills_all)
 
         # Deterministic safeguard for witnessed kills in meeting phase (only for alive suspects).
         if phase == "Meeting phase" and witnessed_kills:
@@ -841,17 +896,17 @@ class LLMAgent(Agent):
         normalized_action_block = self._extract_action_block(output_action)
         for action in available_actions:
             if repr(action) in normalized_action_block:
-                return action
+                return self._apply_meeting_call_guard(action, available_actions, witnessed_kills_all)
             elif "SPEAK: " in repr(action):
                 # Be tolerant to SPEAK formats and prevent thought/process leakage.
                 message = self._extract_speak_message(output_action)
                 if message is not None:
-                    action.message = message
+                    action.message = self._sanitize_speak_payload(message) or "..."
                     return action
                 action.message = "..."
                 return action
         # Safe deterministic fallback: choose the first valid action rather than the last iterated one.
-        return available_actions[0]
+        return self._apply_meeting_call_guard(available_actions[0], available_actions, witnessed_kills_all)
 
     def choose_observation_location(self, map):
         if isinstance(map, (list, tuple)):

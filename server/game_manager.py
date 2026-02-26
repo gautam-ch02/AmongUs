@@ -205,6 +205,11 @@ class GameManager:
 
             # Remove leaked reasoning blocks that may follow the actual message.
             message = re.split(r"\n\s*\[(Reasoning|Thinking Process)\]\s*", message, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+            message = re.sub(r"\[(Condensed Memory|Thinking Process|Action)\]", "", message, flags=re.IGNORECASE)
+            message = re.sub(r"\bFINAL_SPEAK_MESSAGE\s*:\s*", "", message, flags=re.IGNORECASE)
+            message = re.sub(r"\bFINAL_ACTION_INDEX\s*:\s*\d+\b", "", message, flags=re.IGNORECASE)
+            message = re.split(r"\bFINAL_[A-Z_]+\s*:", message, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+            message = re.sub(r"\s+", " ", message).strip()
 
             if message.startswith('"') and message.endswith('"') and len(message) >= 2:
                 message = message[1:-1].strip()
