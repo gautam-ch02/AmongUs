@@ -135,6 +135,30 @@ const meetingFeed = document.getElementById("meeting-feed");
 const taskFeed = document.getElementById("task-feed");
 const seenTaskEvents = new Set();
 const PLAYER_NOTES_STORAGE_KEY = "amongus_player_notes";
+const API_BASE_STORAGE_KEY = "amongus_api_base_url";
+
+const API_BASE_URL = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const queryApiBase = (params.get("api_base") || "").trim();
+  if (queryApiBase) {
+    window.localStorage.setItem(API_BASE_STORAGE_KEY, queryApiBase);
+  }
+  const configured = String(window.API_BASE_URL || "").trim();
+  const persisted = String(window.localStorage.getItem(API_BASE_STORAGE_KEY) || "").trim();
+  const raw = configured || queryApiBase || persisted || "";
+  return raw.replace(/\/+$/, "");
+})();
+
+function apiUrl(path) {
+  const suffix = String(path || "");
+  if (!API_BASE_URL) {
+    return suffix;
+  }
+  if (suffix.startsWith("http://") || suffix.startsWith("https://")) {
+    return suffix;
+  }
+  return `${API_BASE_URL}${suffix}`;
+}
 
 function initMapSkeleton() {
   mapGrid.innerHTML = "";
@@ -1116,7 +1140,7 @@ async function createGame() {
   appendStatusLine("Creating game...");
 
   try {
-    const response = await fetchJson("/create_game", {
+    const response = await fetchJson(apiUrl("/create_game"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -1165,7 +1189,7 @@ async function pollGameState() {
   pollInFlight = true;
   clearError();
   try {
-    const current = await fetchJson(`/game_state?game_id=${encodeURIComponent(gameId)}`);
+    const current = await fetchJson(apiUrl(`/game_state?game_id=${encodeURIComponent(gameId)}`));
     renderState(current);
     previousState = current;
   } catch (error) {
@@ -1198,7 +1222,7 @@ async function submitAction(actionIndex, speechText = "", monitorRoom = "") {
   waitingMessageEl.textContent = "Submitting action...";
 
   try {
-    await fetchJson("/human_action", {
+    await fetchJson(apiUrl("/human_action"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
