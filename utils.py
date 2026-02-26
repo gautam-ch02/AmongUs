@@ -36,6 +36,12 @@ def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS
         experiment_file.write(f"Date: {DATE}\n")
         experiment_file.write(f"Commit: {COMMIT_HASH}\n")
         experiment_file.write(f"Experiment args: {DEFAULT_ARGS}\n")
+        experiment_file.write(
+            f"Tournament meta: id={os.getenv('TOURNAMENT_ID','')}, cell={os.getenv('TOURNAMENT_CELL','')}, run_label={os.getenv('TOURNAMENT_RUN_LABEL','')}, human_role={os.getenv('TOURNAMENT_HUMAN_ROLE','')}\n"
+        )
+        experiment_file.write(
+            f"Model env: crewmate={os.getenv('OPENROUTER_CREWMATE_MODEL','')}, impostor={os.getenv('OPENROUTER_IMPOSTOR_MODEL','')}, timeout={os.getenv('OPENROUTER_TIMEOUT_SECONDS','60')}\n"
+        )
         experiment_file.write(f"Path of executable file: {os.path.abspath(__file__)}\n")
         experiment_file.write(f"Experiment index: {next_index}\n")
 
@@ -61,6 +67,20 @@ def setup_experiment(experiment_name, LOGS_PATH, DATE, COMMIT_HASH, DEFAULT_ARGS
         "runtime": {
             "python_version": sys.version,
             "platform": platform.platform(),
+        },
+        "tournament": {
+            "id": os.getenv("TOURNAMENT_ID", ""),
+            "cell": os.getenv("TOURNAMENT_CELL", ""),
+            "run_label": os.getenv("TOURNAMENT_RUN_LABEL", ""),
+            "human_role": os.getenv("TOURNAMENT_HUMAN_ROLE", ""),
+            "notes": os.getenv("TOURNAMENT_NOTES", ""),
+        },
+        "env_snapshot": {
+            "openrouter_crewmate_model": os.getenv("OPENROUTER_CREWMATE_MODEL", ""),
+            "openrouter_impostor_model": os.getenv("OPENROUTER_IMPOSTOR_MODEL", ""),
+            "openrouter_timeout_seconds": os.getenv("OPENROUTER_TIMEOUT_SECONDS", "60"),
+            "openrouter_top_p": os.getenv("OPENROUTER_TOP_P", ""),
+            "openrouter_temperature": os.getenv("OPENROUTER_TEMPERATURE", ""),
         },
     }
     with open(os.path.join(structured_v1_path, "runs.jsonl"), "a", encoding="utf-8") as f:

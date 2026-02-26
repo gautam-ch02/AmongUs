@@ -33,7 +33,8 @@ class GameRecord:
 
 class GameManager:
     def __init__(self) -> None:
-        load_dotenv(ROOT_DIR / ".env")
+        # Force .env values to override inherited shell/session values so run configs are deterministic.
+        load_dotenv(ROOT_DIR / ".env", override=True)
         os.environ["FLASK_ENABLED"] = "True"
         self._records: Dict[int, GameRecord] = {}
         self._next_game_id = 1
@@ -111,12 +112,14 @@ class GameManager:
         if not os.getenv("OPENROUTER_API_KEY"):
             raise RuntimeError("OPENROUTER_API_KEY is required.")
 
-        crewmate_model = (crewmate_model or "").strip() or (
-            os.getenv("OPENROUTER_CREWMATE_MODEL", "").strip() or "openrouter/free"
-        )
-        impostor_model = (impostor_model or "").strip() or (
-            os.getenv("OPENROUTER_IMPOSTOR_MODEL", "").strip() or "openrouter/free"
-        )
+        # Tournament mode: model selection is sourced strictly from .env, not request payloads.
+        # This avoids accidental model drift across runs.
+        crewmate_model = os.getenv("OPENROUTER_CREWMATE_MODEL", "").strip()
+        impostor_model = os.getenv("OPENROUTER_IMPOSTOR_MODEL", "").strip()
+        if not crewmate_model or not impostor_model:
+            raise RuntimeError(
+                "OPENROUTER_CREWMATE_MODEL and OPENROUTER_IMPOSTOR_MODEL must be set in .env"
+            )
 
         async with self._init_lock:
             game_id = self._next_game_id

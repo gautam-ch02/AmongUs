@@ -221,6 +221,24 @@ class AmongUs:
         identities = ["Crewmate"] * num_crewmates + ["Impostor"] * num_impostors
         colors = np.random.choice(PLAYER_COLORS, num_players, replace=False)
         np.random.shuffle(identities)
+        if self.include_human:
+            # Human seat can be forced by env for tournament cells.
+            self.human_index = int(np.random.choice(num_players))
+            desired_role = str(os.getenv("TOURNAMENT_HUMAN_ROLE", "")).strip().lower()
+            if desired_role in {"impostor", "crewmate"}:
+                desired_identity = "Impostor" if desired_role == "impostor" else "Crewmate"
+                if identities[self.human_index] != desired_identity:
+                    swap_idx = next(
+                        (idx for idx, identity in enumerate(identities) if identity == desired_identity),
+                        None,
+                    )
+                    if swap_idx is not None:
+                        identities[self.human_index], identities[swap_idx] = (
+                            identities[swap_idx],
+                            identities[self.human_index],
+                        )
+        else:
+            self.human_index = None
         self.identities = identities
         for i in range(num_players):
             if identities[i] == "Crewmate":
@@ -261,7 +279,6 @@ class AmongUs:
         self.update_map()
 
     def initialize_agents(self):
-        random_idx = np.random.choice(len(self.players))
         if self.test:
             self.agents = [LLMHumanAgent(player) for player in self.players]
         else:
@@ -273,7 +290,7 @@ class AmongUs:
             }
             self.agents = []
         for i, player in enumerate(self.players):
-                if self.include_human and i == random_idx:
+                if self.include_human and self.human_index is not None and i == self.human_index:
                     # Create HumanAgent with game_id set to game_index
                     human_agent = HumanAgent(player, game_index=self.game_index)
                     # Set the game_id attribute to match the game_index

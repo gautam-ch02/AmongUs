@@ -10,6 +10,7 @@ let gameId = null;
 let previousState = null;
 let pollTimer = null;
 let pollInFlight = false;
+let consecutivePollErrors = 0;
 let actionSubmitInFlight = false;
 let selectedAction = null;
 let lastIsHumanTurn = null;
@@ -344,9 +345,26 @@ function loadNotes() {
 
 function stopPolling() {
   if (pollTimer !== null) {
-    clearInterval(pollTimer);
+    clearTimeout(pollTimer);
     pollTimer = null;
   }
+}
+
+function scheduleNextPoll(delayMs = 1000) {
+  if (gameId === null) {
+    return;
+  }
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer);
+  }
+  pollTimer = setTimeout(() => {
+    pollGameState();
+  }, Math.max(200, Number(delayMs) || 1000));
+}
+
+function startPollingNow() {
+  stopPolling();
+  scheduleNextPoll(50);
 }
 
 function appendStatusLine(text) {
@@ -1261,6 +1279,7 @@ async function createGame() {
 
     gameId = response.game_id;
     previousState = null;
+    consecutivePollErrors = 0;
     previousPhase = null;
     winnerBannerEl.classList.add("hidden");
     winnerBannerEl.textContent = "";
@@ -1282,8 +1301,7 @@ async function createGame() {
     missionBriefEl.textContent = "No mission briefing captured yet.";
     missionBriefCaptured = false;
     appendStatusLine(`Game created (game_id=${gameId}). Polling state...`);
-    await pollGameState();
-    pollTimer = setInterval(pollGameState, 1000);
+    startPollingNow();
   } catch (error) {
     showError(`Create game failed: ${error.message}`);
     appendStatusLine("Create game failed.");
@@ -1293,19 +1311,28 @@ async function createGame() {
 
 async function pollGameState() {
   if (gameId === null || pollInFlight) {
+    if (gameId !== null && !pollInFlight) {
+      scheduleNextPoll(1000);
+    }
     return;
   }
 
   pollInFlight = true;
-  clearError();
   try {
+    clearError();
     const current = await fetchJson(apiUrl(`/game_state?game_id=${encodeURIComponent(gameId)}`));
     renderState(current);
     previousState = current;
+    consecutivePollErrors = 0;
+    scheduleNextPoll(1000);
   } catch (error) {
+    consecutivePollErrors += 1;
     showError(`Polling failed: ${error.message}`);
-    appendStatusLine("Polling stopped due to error.");
-    stopPolling();
+    const retryDelayMs = Math.min(15000, 1000 * Math.pow(2, Math.min(consecutivePollErrors - 1, 4)));
+    appendStatusLine(
+      `Polling failed (attempt ${consecutivePollErrors}). Retrying in ${Math.round(retryDelayMs / 1000)}s...`
+    );
+    scheduleNextPoll(retryDelayMs);
   } finally {
     pollInFlight = false;
   }
@@ -1344,7 +1371,7 @@ async function submitAction(actionIndex, speechText = "", monitorRoom = "") {
     });
     appendStatusLine(`Action ${actionIndex} submitted. Waiting for next state...`);
     waitingMessageEl.textContent = "Waiting for your turn...";
-    await pollGameState();
+    startPollingNow();
   } catch (error) {
     showError(`Submit action failed: ${error.message}`);
     appendStatusLine("Action submission failed.");

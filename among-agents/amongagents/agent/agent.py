@@ -236,6 +236,10 @@ class LLMAgent(Agent):
             text = line.strip()
             if not text:
                 continue
+            # Ignore menu-style available-action lines like "6. KILL Player X",
+            # which are options, not evidence that a player is eliminated.
+            if re.match(r"^\d+\.\s+KILL\s+Player\s+\d+\s*:\s*[a-zA-Z]+", text, flags=re.IGNORECASE):
+                continue
             voted_match = re.search(r"(Player\s+\d+\s*:\s*[a-zA-Z]+)\s+was voted out", text, flags=re.IGNORECASE)
             if voted_match:
                 names.append(re.sub(r"\s+", " ", voted_match.group(1).strip()))
@@ -618,8 +622,12 @@ class LLMAgent(Agent):
         timeout = ClientTimeout(total=timeout_seconds)
         max_tokens_requested = payload.get("max_tokens")
         
+        max_attempts = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+        if max_attempts < 1:
+            max_attempts = 1
+
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(10):
+            for attempt in range(max_attempts):
                 attempt_num = attempt + 1
                 start_time = time.time()
                 try:
@@ -725,7 +733,7 @@ class LLMAgent(Agent):
                         timeout_seconds=timeout_seconds,
                         max_tokens_requested=max_tokens_requested,
                     )
-                    print(f"API request timed out. Retrying... ({attempt_num}/10) for {self.model}.")
+                    print(f"API request timed out. Retrying... ({attempt_num}/{max_attempts}) for {self.model}.")
                     continue
                 except aiohttp.ClientConnectionError as e:
                     self.log_api_error("connection_error", f"attempt={attempt_num}, error={e}")
@@ -741,7 +749,7 @@ class LLMAgent(Agent):
                         timeout_seconds=timeout_seconds,
                         max_tokens_requested=max_tokens_requested,
                     )
-                    print(f"API connection failed. Retrying... ({attempt_num}/10) for {self.model}.")
+                    print(f"API connection failed. Retrying... ({attempt_num}/{max_attempts}) for {self.model}.")
                     continue
                 except Exception as e:
                     self.log_api_error("exception", f"attempt={attempt_num}, error={e}")
@@ -757,21 +765,21 @@ class LLMAgent(Agent):
                         timeout_seconds=timeout_seconds,
                         max_tokens_requested=max_tokens_requested,
                     )
-                    print(f"API request failed. Retrying... ({attempt_num}/10) for {self.model}.")
+                    print(f"API request failed. Retrying... ({attempt_num}/{max_attempts}) for {self.model}.")
                     continue
             self.log_api_call(
                 success=False,
-                attempt=10,
+                attempt=max_attempts,
                 step=step,
                 phase=phase,
                 error_type="all_attempts_failed",
-                error_details="Returning fallback response after max retries",
-                response_text="SPEAK: ...",
+                error_details="Returning API failure sentinel after max retries",
+                response_text="__API_REQUEST_FAILED__",
                 prompt_text=prompt_text,
                 timeout_seconds=timeout_seconds,
                 max_tokens_requested=max_tokens_requested,
             )
-            return 'SPEAK: ...'
+            return "__API_REQUEST_FAILED__"
 
     def respond(self, message):
         all_info = self.player.all_info_prompt()
@@ -839,6 +847,12 @@ class LLMAgent(Agent):
         }
         
         response = await self.send_request(messages, step=timestep, phase=phase)
+        if response == "__API_REQUEST_FAILED__":
+            try:
+                random_fallback = random.choice(available_actions)
+                return self._apply_meeting_call_guard(random_fallback, available_actions, witnessed_kills_all)
+            except Exception:
+                return self._apply_meeting_call_guard(available_actions[0], available_actions, witnessed_kills_all)
 
         self.log_interaction(sysprompt=self.system_prompt, prompt=full_prompt, original_response=response, step=timestep)
 
