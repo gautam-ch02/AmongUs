@@ -188,6 +188,43 @@ class LLMAgent(Agent):
             )
         return kills
 
+    def _extract_players_in_current_room(self, all_info: str) -> List[str]:
+        match = re.search(r"Players in [^:]+:\s*(.*)", str(all_info or ""), flags=re.IGNORECASE)
+        if not match:
+            return []
+        raw = match.group(1).strip()
+        if not raw:
+            return []
+        parts = [part.strip() for part in raw.split(",")]
+        players: List[str] = []
+        for part in parts:
+            cleaned = re.sub(r"\s*\(dead\)\s*$", "", part, flags=re.IGNORECASE).strip()
+            if cleaned:
+                players.append(cleaned)
+        return players
+
+    def _extract_explicit_dead_players(self, all_info: str) -> List[str]:
+        names = re.findall(r"(Player\s+\d+\s*:\s*[a-zA-Z]+)\s*\(dead\)", str(all_info or ""), flags=re.IGNORECASE)
+        deduped: List[str] = []
+        seen = set()
+        for name in names:
+            norm = re.sub(r"\s+", " ", name.strip())
+            if norm not in seen:
+                seen.add(norm)
+                deduped.append(norm)
+        return deduped
+
+    def _filter_witnessed_kills_for_meeting(self, kills: List[Dict[str, str]], alive_players: List[str]) -> List[Dict[str, str]]:
+        if not kills:
+            return []
+        alive = {re.sub(r"\s+", " ", str(name).strip()) for name in alive_players}
+        filtered: List[Dict[str, str]] = []
+        for kill in kills:
+            killer = re.sub(r"\s+", " ", str(kill.get("killer", "")).strip())
+            if killer in alive:
+                filtered.append(kill)
+        return filtered
+
     def _format_structured_evidence(self, kills: List[Dict[str, str]]) -> str:
         if not kills:
             return "Witnessed kills: none"
@@ -211,6 +248,30 @@ class LLMAgent(Agent):
             if target in repr(action):
                 return action
         return None
+
+    def _extract_final_action_index(self, text: str) -> Optional[int]:
+        if not text:
+            return None
+        match = re.search(r"FINAL_ACTION_INDEX\s*:\s*(\d+)", text, flags=re.IGNORECASE)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except Exception:
+            return None
+
+    def _extract_final_speak_message(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        match = re.search(r"FINAL_SPEAK_MESSAGE\s*:\s*(.*)", text, flags=re.IGNORECASE)
+        if not match:
+            return None
+        message = match.group(1).strip()
+        if message.startswith('"') and message.endswith('"') and len(message) >= 2:
+            message = message[1:-1].strip()
+        if message.startswith("'") and message.endswith("'") and len(message) >= 2:
+            message = message[1:-1].strip()
+        return message or None
 
     def log_api_call(
         self,
@@ -671,18 +732,28 @@ class LLMAgent(Agent):
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
-        witnessed_kills = self._extract_witnessed_kills(all_info)
-        structured_evidence = self._format_structured_evidence(witnessed_kills)
+        witnessed_kills_all = self._extract_witnessed_kills(all_info)
+        alive_players = self._extract_players_in_current_room(all_info)
+        eliminated_players = self._extract_explicit_dead_players(all_info)
+        available_actions_text = "\n".join(
+            f"{idx + 1}. {repr(action)}" for idx, action in enumerate(available_actions)
+        )
         # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
         phase = "Meeting phase" if len(available_actions) == 1 or all(a.name == "VOTE" for a in available_actions) else "Task phase"
+        witnessed_kills = (
+            self._filter_witnessed_kills_for_meeting(witnessed_kills_all, alive_players)
+            if phase == "Meeting phase"
+            else witnessed_kills_all
+        )
+        structured_evidence = self._format_structured_evidence(witnessed_kills)
         hard_rule = ""
         if phase == "Meeting phase" and witnessed_kills:
             latest_kill = witnessed_kills[-1]
             hard_rule = (
-                "\n\nHard rule for this turn:\n"
-                f"- You directly witnessed {latest_kill['killer']} kill {latest_kill['victim']} at timestep {latest_kill['timestep']}.\n"
-                f"- In discussion: explicitly state this witnessed kill.\n"
-                f"- In voting: vote for {latest_kill['killer']} unless contradictory evidence is explicitly given."
+                "\n\nMeeting guidance for this turn:\n"
+                f"- You witnessed {latest_kill['killer']} kill {latest_kill['victim']} at timestep {latest_kill['timestep']}.\n"
+                f"- Mention this evidence once if useful, then update based on current alive players and latest discussion.\n"
+                "- Do not push accusations against players who are already eliminated."
             )
 
         messages = [
@@ -690,7 +761,12 @@ class LLMAgent(Agent):
             {
                 "role": "user",
                 "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nStructured Evidence:\n{structured_evidence}\n\nMemory: {self.processed_memory}\
-                    \n\nPhase: {phase}. Return your output.{hard_rule}",
+                    \n\nAlive Players (current room): {alive_players}\nEliminated Players (inferred): {eliminated_players}\n\nAction Selection Protocol (strict):\
+                    \n- Choose exactly one action index from the list below.\
+                    \n- Final line MUST be: FINAL_ACTION_INDEX: <number>.\
+                    \n- If the selected action is SPEAK, also include FINAL_SPEAK_MESSAGE: <your message>.\
+                    \n- Do not output an action not listed below.\
+                    \n\nAvailable actions (indexed):\n{available_actions_text}\n\nPhase: {phase}. Return your output.{hard_rule}",
             },
         ]
         
@@ -700,6 +776,9 @@ class LLMAgent(Agent):
             "All Info": all_info,
             "Structured Evidence": structured_evidence,
             "Memory": self.processed_memory,
+            "Alive Players": alive_players,
+            "Eliminated Players (Inferred)": eliminated_players,
+            "Available Actions (Indexed)": available_actions_text,
             "Phase": phase,
             "Hard Rule": hard_rule.strip(),
         }
@@ -725,7 +804,21 @@ class LLMAgent(Agent):
         else:
             output_action = response.strip()
 
-        # Deterministic safeguard for witnessed kills in meeting phase.
+        final_action_index = self._extract_final_action_index(response)
+        if final_action_index is not None:
+            idx = final_action_index - 1
+            if 0 <= idx < len(available_actions):
+                chosen_action = available_actions[idx]
+                if getattr(chosen_action, "name", "") == "SPEAK":
+                    speak_msg = (
+                        self._extract_final_speak_message(response)
+                        or self._extract_speak_message(response)
+                        or "..."
+                    )
+                    chosen_action.message = speak_msg
+                return chosen_action
+
+        # Deterministic safeguard for witnessed kills in meeting phase (only for alive suspects).
         if phase == "Meeting phase" and witnessed_kills:
             latest_kill = witnessed_kills[-1]
             killer_name = latest_kill["killer"]
@@ -756,7 +849,9 @@ class LLMAgent(Agent):
                     action.message = message
                     return action
                 action.message = "..."
-        return action
+                return action
+        # Safe deterministic fallback: choose the first valid action rather than the last iterated one.
+        return available_actions[0]
 
     def choose_observation_location(self, map):
         if isinstance(map, (list, tuple)):

@@ -135,8 +135,11 @@ class Player:
             text += "No observations have been made yet.\n"
         else:
             recent_messages = self.observation_history[-recent_num:]
-            # Keep witnessed kills sticky so crucial evidence is not dropped by recency truncation.
-            kill_messages = [msg for msg in self.observation_history if " KILL " in str(msg)]
+            # Keep only recent witnessed kills to avoid stale accusations dominating later meetings.
+            kill_history_window = max(recent_num * 3, 8)
+            kill_messages = [
+                msg for msg in self.observation_history[-kill_history_window:] if " KILL " in str(msg)
+            ]
             combined_messages = []
             seen = set()
             for msg in kill_messages + recent_messages:

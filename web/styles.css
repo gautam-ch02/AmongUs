@@ -52,6 +52,17 @@ body {
   gap: 12px;
 }
 
+.winner-banner {
+  margin-top: 10px;
+  border: 1px solid #f0c674;
+  background: linear-gradient(0deg, rgba(240, 198, 116, 0.2), rgba(20, 29, 39, 1));
+  color: #ffe9b2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .main-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -267,6 +278,28 @@ body {
   min-height: 0;
 }
 
+.role-banner {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #365274;
+  background: #0f1621;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.role-banner.crewmate {
+  border-color: #3a8e61;
+  background: linear-gradient(0deg, rgba(58, 142, 97, 0.18), #0f1621);
+  color: #b9f4d1;
+}
+
+.role-banner.impostor {
+  border-color: #b6505f;
+  background: linear-gradient(0deg, rgba(182, 80, 95, 0.2), #0f1621);
+  color: #ffd0d6;
+}
+
 .actions {
   display: grid;
   gap: 8px;
@@ -358,6 +391,11 @@ body {
 .meeting-group.human {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(67, 213, 255, 0.25);
+}
+
+.meeting-group.system {
+  border-color: #f0c674;
+  background: linear-gradient(0deg, rgba(240, 198, 116, 0.14), #0f1621);
 }
 
 .meeting-group .speaker {

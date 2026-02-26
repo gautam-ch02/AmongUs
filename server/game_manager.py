@@ -213,8 +213,44 @@ class GameManager:
             return message or "..."
 
         messages: List[Dict[str, Any]] = []
+        pending_announcements: List[Dict[str, Any]] = []
+
+        def _meeting_announcement(entry: Dict[str, Any], idx: int) -> Optional[Dict[str, Any]]:
+            player_obj = entry.get("player")
+            action = entry.get("action")
+            if player_obj is None or action is None:
+                return None
+            action_text = str(action)
+            if not (
+                re.match(r"^\s*CALL MEETING\b", action_text, flags=re.IGNORECASE)
+                or re.match(r"^\s*REPORT DEAD BODY\b", action_text, flags=re.IGNORECASE)
+            ):
+                return None
+
+            location = getattr(action, "current_location", None)
+            location_text = f" at {location}" if location else ""
+            if re.match(r"^\s*REPORT DEAD BODY\b", action_text, flags=re.IGNORECASE):
+                reason = f"reported a dead body{location_text}"
+            else:
+                reason = f"pressed the emergency button{location_text}"
+
+            timestep = entry.get("timestep")
+            return {
+                "id": f"announcement:{idx}:{timestep}:{player_obj.name}",
+                "timestep": timestep,
+                "round": "announcement",
+                "player": "SYSTEM",
+                "text": f"Meeting called by {player_obj.name}: {reason}.",
+                "system": True,
+            }
+
         for idx, entry in enumerate(getattr(game, "activity_log", []) or []):
-            if entry.get("phase") != "meeting":
+            phase = entry.get("phase")
+            if phase != "meeting":
+                if phase == "task":
+                    announcement = _meeting_announcement(entry, idx)
+                    if announcement is not None:
+                        pending_announcements.append(announcement)
                 continue
             player_obj = entry.get("player")
             action = entry.get("action")
@@ -223,6 +259,9 @@ class GameManager:
             action_text = str(action)
             if not re.match(r"^\s*SPEAK\b", action_text, flags=re.IGNORECASE):
                 continue
+            if pending_announcements:
+                messages.extend(pending_announcements)
+                pending_announcements = []
             message_text = _clean_meeting_message(action_text)
             round_number = entry.get("round")
             timestep = entry.get("timestep")
@@ -234,6 +273,7 @@ class GameManager:
                     "round": round_number,
                     "player": player_obj.name,
                     "text": message_text,
+                    "system": False,
                 }
             )
         return messages

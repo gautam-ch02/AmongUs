@@ -80,23 +80,24 @@ const ROOM_PATHS = [
 ];
 
 const COLOR_MAP = {
-  red: "#ff5f56",
-  blue: "#59a6ff",
-  green: "#65d96e",
-  yellow: "#ffd75c",
-  orange: "#ffb05c",
-  purple: "#b78bff",
-  pink: "#ff84c0",
-  brown: "#b9895a",
-  black: "#9099a8",
-  white: "#f3f6fb",
-  cyan: "#6df6ff",
-  lime: "#88ff66",
+  red: "#e05a4f",
+  blue: "#4f8de0",
+  green: "#2f8f4e",
+  yellow: "#e6b93f",
+  orange: "#d8843b",
+  purple: "#8a63d2",
+  pink: "#d56aa6",
+  brown: "#8a5a3a",
+  black: "#5e6675",
+  white: "#d9e0ea",
+  cyan: "#4fb9c9",
+  lime: "#a7d94f",
   gray: "#7f8794",
 };
 
 const createGameBtn = document.getElementById("create-game-btn");
 const createStatus = document.getElementById("create-status");
+const winnerBannerEl = document.getElementById("winner-banner");
 const errorBanner = document.getElementById("error-banner");
 const gameView = document.getElementById("game-view");
 const logView = document.getElementById("log-view");
@@ -113,6 +114,7 @@ const actionsEl = document.getElementById("actions");
 const latestLogEl = document.getElementById("latest-log");
 const missionBriefEl = document.getElementById("mission-brief");
 const notesBoxEl = document.getElementById("notes-box");
+const roleBannerEl = document.getElementById("role-banner");
 
 const tabLiveLogsBtn = document.getElementById("tab-live-logs");
 const tabMissionBriefBtn = document.getElementById("tab-mission-brief");
@@ -702,8 +704,39 @@ function updateStatus(previous, current) {
   statusEl.textContent = String(current.status ?? "-");
   phaseEl.textContent = String(current.current_phase ?? "-");
   timestepEl.textContent = String(current.timestep ?? "-");
-  currentPlayerEl.textContent = String(current.current_player ?? "-");
+  currentPlayerEl.textContent = current.is_human_turn ? "No (your turn now)" : "Yes";
   turnStateEl.textContent = current.is_human_turn ? "Human turn" : "Waiting";
+}
+
+function updateRoleBanner(current) {
+  const role = String(current.human_player_identity || "").trim();
+  if (!role) {
+    roleBannerEl.classList.add("hidden");
+    roleBannerEl.classList.remove("crewmate", "impostor");
+    roleBannerEl.textContent = "";
+    return;
+  }
+  const roleLower = role.toLowerCase();
+  roleBannerEl.classList.remove("hidden", "crewmate", "impostor");
+  if (roleLower.includes("impostor")) {
+    roleBannerEl.classList.add("impostor");
+    roleBannerEl.textContent = `Role: IMPOSTOR`;
+  } else {
+    roleBannerEl.classList.add("crewmate");
+    roleBannerEl.textContent = `Role: CREWMATE`;
+  }
+}
+
+function updateWinnerBanner(current) {
+  const finished = String(current.status || "") !== "running";
+  if (!finished || current.winner == null) {
+    winnerBannerEl.classList.add("hidden");
+    winnerBannerEl.textContent = "";
+    return;
+  }
+  const winnerText = String(current.winner_reason || `Winner: ${current.winner}`);
+  winnerBannerEl.textContent = `Game Over - ${winnerText}`;
+  winnerBannerEl.classList.remove("hidden");
 }
 
 function extractNewLogLines(previousInfo, currentInfo) {
@@ -922,11 +955,14 @@ function normalizeMeetingText(text) {
 
 function appendMeetingMessage(message, isHuman) {
   const group = document.createElement("div");
-  group.className = `meeting-group${isHuman ? " human" : ""}`;
-  const speakerColor = colorHexFromPlayerName(message.player);
-  group.classList.add("tinted");
-  group.style.setProperty("--player-tint-bg", hexToRgba(speakerColor, 0.14));
-  group.style.setProperty("--player-tint-border", hexToRgba(speakerColor, 0.42));
+  const isSystem = Boolean(message.system) || message.player === "SYSTEM";
+  group.className = `meeting-group${isHuman ? " human" : ""}${isSystem ? " system" : ""}`;
+  if (!isSystem) {
+    const speakerColor = colorHexFromPlayerName(message.player);
+    group.classList.add("tinted");
+    group.style.setProperty("--player-tint-bg", hexToRgba(speakerColor, 0.2));
+    group.style.setProperty("--player-tint-border", hexToRgba(speakerColor, 0.62));
+  }
 
   const speaker = document.createElement("div");
   speaker.className = "speaker";
@@ -958,6 +994,7 @@ function updateMeetingPanel(previous, current) {
       phase: "meeting",
       player: entry.player,
       text: normalizeMeetingText(String(entry.text || "").trim() || "..."),
+      system: Boolean(entry.system),
     }));
   } else {
     messages = parseMeetingMessages(current.player_info || "");
@@ -1055,6 +1092,8 @@ function renderState(current) {
 
   updateMap(previousState, current);
   updateStatus(previousState, current);
+  updateRoleBanner(current);
+  updateWinnerBanner(current);
   updateSidebar(previousState, current);
   updateMeetingPanel(previousState, current);
   updateTaskFeed(previousState, current);
@@ -1089,6 +1128,11 @@ async function createGame() {
 
     gameId = response.game_id;
     previousState = null;
+    winnerBannerEl.classList.add("hidden");
+    winnerBannerEl.textContent = "";
+    roleBannerEl.classList.add("hidden");
+    roleBannerEl.classList.remove("crewmate", "impostor");
+    roleBannerEl.textContent = "";
     seenMeetingMessages.clear();
     seenVisibleLogKeys.clear();
     hiddenAliasByName.clear();
