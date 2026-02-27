@@ -452,6 +452,48 @@ body {
   padding-top: 12px;
 }
 
+.task-progress-stack {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.task-progress-group {
+  display: grid;
+  gap: 6px;
+}
+
+.task-progress-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.task-progress-track {
+  height: 10px;
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #0f1621;
+  overflow: hidden;
+}
+
+.task-progress-fill {
+  height: 100%;
+  width: 0%;
+  transition: width 180ms ease;
+}
+
+.task-progress-fill.human {
+  background: linear-gradient(90deg, #42b983 0%, #7de2b1 100%);
+}
+
+.task-progress-fill.global {
+  background: linear-gradient(90deg, #43d5ff 0%, #7db1ff 100%);
+}
+
 .task-feed {
   height: 160px;
   max-height: 160px;

@@ -64,20 +64,28 @@ const ROOM_COORDS = {
 
 const ROOM_PATHS = [
   ["Cafeteria", "Weapons"],
+  ["Cafeteria", "Admin"],
+  ["Cafeteria", "Upper Engine"],
+  ["Cafeteria", "Medbay"],
+  ["Weapons", "Navigation"],
   ["Weapons", "O2"],
-  ["O2", "Navigation"],
   ["Navigation", "Shields"],
+  ["O2", "Shields"],
+  ["O2", "Admin"],
   ["Shields", "Communications"],
+  ["Shields", "Storage"],
   ["Communications", "Storage"],
-  ["Storage", "Cafeteria"],
   ["Storage", "Admin"],
   ["Storage", "Electrical"],
+  ["Storage", "Lower Engine"],
+  ["Admin", "Electrical"],
   ["Electrical", "Lower Engine"],
   ["Lower Engine", "Reactor"],
   ["Lower Engine", "Security"],
+  ["Lower Engine", "Upper Engine"],
   ["Security", "Reactor"],
   ["Security", "Upper Engine"],
-  ["Upper Engine", "Cafeteria"],
+  ["Reactor", "Upper Engine"],
   ["Upper Engine", "Medbay"],
 ];
 
@@ -137,6 +145,10 @@ const submitMonitorBtn = document.getElementById("submit-monitor-btn");
 const meetingPanel = document.getElementById("meeting-panel");
 const meetingFeed = document.getElementById("meeting-feed");
 const taskFeed = document.getElementById("task-feed");
+const humanTaskProgressTextEl = document.getElementById("human-task-progress-text");
+const humanTaskProgressFillEl = document.getElementById("human-task-progress-fill");
+const globalTaskProgressTextEl = document.getElementById("global-task-progress-text");
+const globalTaskProgressFillEl = document.getElementById("global-task-progress-fill");
 const seenTaskEvents = new Set();
 const PLAYER_NOTES_STORAGE_KEY = "amongus_player_notes";
 const API_BASE_STORAGE_KEY = "amongus_api_base_url";
@@ -149,9 +161,10 @@ const API_BASE_URL = (() => {
   if (queryApiBase) {
     window.localStorage.setItem(API_BASE_STORAGE_KEY, queryApiBase);
   }
+  const hasConfiguredApiBase = Object.prototype.hasOwnProperty.call(window, "API_BASE_URL");
   const configured = String(window.API_BASE_URL || "").trim();
   const persisted = String(window.localStorage.getItem(API_BASE_STORAGE_KEY) || "").trim();
-  const raw = configured || queryApiBase || persisted || "";
+  const raw = hasConfiguredApiBase ? configured : (queryApiBase || persisted || "");
   return raw.replace(/\/+$/, "");
 })();
 
@@ -283,6 +296,11 @@ function playSfx(name) {
     playTone({ freq: 392, duration: 0.12, type: "square", startAt: 0, gain: 0.75 });
     playTone({ freq: 330, duration: 0.12, type: "square", startAt: 0.13, gain: 0.75 });
     playTone({ freq: 262, duration: 0.18, type: "square", startAt: 0.28, gain: 0.85 });
+    return;
+  }
+  if (name === "human-turn") {
+    playTone({ freq: 659, duration: 0.08, type: "triangle", startAt: 0, gain: 0.8 });
+    playTone({ freq: 880, duration: 0.1, type: "triangle", startAt: 0.09, gain: 0.9 });
   }
 }
 
@@ -1233,9 +1251,56 @@ function updateTaskFeed(previous, current) {
   }
 }
 
+function applyProgressBar(fillEl, textEl, progress) {
+  if (!fillEl || !textEl) {
+    return;
+  }
+  const totalRaw = Number(progress && progress.total);
+  const completedRaw = Number(progress && progress.completed);
+  const ratioRaw = Number(progress && progress.ratio);
+  const total = Number.isFinite(totalRaw) && totalRaw >= 0 ? Math.floor(totalRaw) : 0;
+  const completed = Number.isFinite(completedRaw) && completedRaw >= 0
+    ? Math.min(total, Math.floor(completedRaw))
+    : 0;
+  const remainingRaw = Number(progress && progress.remaining);
+  const remaining = Number.isFinite(remainingRaw) && remainingRaw >= 0
+    ? Math.min(total, Math.floor(remainingRaw))
+    : Math.max(0, total - completed);
+  const ratio = Number.isFinite(ratioRaw)
+    ? Math.max(0, Math.min(1, ratioRaw))
+    : (total > 0 ? completed / total : 0);
+
+  fillEl.style.width = `${(ratio * 100).toFixed(1)}%`;
+  textEl.textContent = `${remaining} left (${completed}/${total})`;
+}
+
+function updateTaskProgress(current) {
+  const progress = (current && current.task_progress) || {};
+  applyProgressBar(humanTaskProgressFillEl, humanTaskProgressTextEl, progress.human || {});
+  applyProgressBar(globalTaskProgressFillEl, globalTaskProgressTextEl, progress.global || {});
+}
+
+function resetTaskProgress() {
+  if (humanTaskProgressFillEl) {
+    humanTaskProgressFillEl.style.width = "0%";
+  }
+  if (globalTaskProgressFillEl) {
+    globalTaskProgressFillEl.style.width = "0%";
+  }
+  if (humanTaskProgressTextEl) {
+    humanTaskProgressTextEl.textContent = "-";
+  }
+  if (globalTaskProgressTextEl) {
+    globalTaskProgressTextEl.textContent = "-";
+  }
+}
+
 function renderState(current) {
   gameView.classList.remove("hidden");
   logView.classList.remove("hidden");
+  const becameHumanTurn =
+    Boolean(current && current.is_human_turn) &&
+    !(previousState && previousState.is_human_turn);
 
   updateMap(previousState, current);
   updateStatus(previousState, current);
@@ -1243,8 +1308,12 @@ function renderState(current) {
   updateWinnerBanner(current);
   updateSidebar(previousState, current);
   updateMeetingPanel(previousState, current);
+  updateTaskProgress(current);
   updateTaskFeed(previousState, current);
   updateLog(previousState, current);
+  if (becameHumanTurn && String(current.status || "") === "running") {
+    playSfx("human-turn");
+  }
 
   if (current.status !== "running") {
     const wasRunning = previousState && String(previousState.status || "") === "running";
@@ -1297,6 +1366,7 @@ async function createGame() {
     meetingFeed.innerHTML = "";
     seenTaskEvents.clear();
     taskFeed.textContent = "No task actions yet.";
+    resetTaskProgress();
     latestLogEl.textContent = "No visible events yet.";
     missionBriefEl.textContent = "No mission briefing captured yet.";
     missionBriefCaptured = false;
@@ -1440,6 +1510,7 @@ submitMonitorBtn.addEventListener("click", async () => {
 });
 
 initMapSkeleton();
+resetTaskProgress();
 setActiveJournalTab("live-logs");
 loadNotes();
 loadSoundPrefs();

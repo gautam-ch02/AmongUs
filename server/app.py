@@ -50,6 +50,11 @@ async def index() -> FileResponse:
     return FileResponse(str(WEB_DIR / "index.html"))
 
 
+@app.get("/favicon.ico")
+async def favicon() -> FileResponse:
+    return FileResponse(str(WEB_DIR / "assets" / "skeld.png"))
+
+
 @app.post("/create_game", response_model=CreateGameResponse)
 async def create_game(request: CreateGameRequest) -> CreateGameResponse:
     try:

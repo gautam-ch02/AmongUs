@@ -286,6 +286,60 @@ class GameManager:
             )
         return messages
 
+    def _serialize_progress_snapshot(self, completed: int, total: int) -> Dict[str, Any]:
+        safe_completed = max(0, int(completed))
+        safe_total = max(0, int(total))
+        safe_completed = min(safe_completed, safe_total)
+        remaining = max(0, safe_total - safe_completed)
+        ratio = (safe_completed / safe_total) if safe_total > 0 else 0.0
+        return {
+            "completed": safe_completed,
+            "total": safe_total,
+            "remaining": remaining,
+            "ratio": ratio,
+        }
+
+    def _compute_global_task_progress(self, game: AmongUs) -> Dict[str, Any]:
+        task_assignment = getattr(game, "task_assignment", None)
+        assigned_tasks = getattr(task_assignment, "assigned_tasks", None) if task_assignment else None
+        completed = 0
+        total = 0
+        if assigned_tasks is None:
+            return self._serialize_progress_snapshot(completed=0, total=0)
+        for task in assigned_tasks:
+            assigned_player = getattr(task, "assigned_player", None)
+            if assigned_player is not None and not bool(getattr(assigned_player, "is_alive", True)):
+                # Keep behavior aligned with env.task_assignment.check_task_completion():
+                # dead players' tasks are excluded from the global progress bar.
+                continue
+            total += 1
+            try:
+                if bool(task.check_completion()):
+                    completed += 1
+            except Exception:
+                continue
+        return self._serialize_progress_snapshot(completed=completed, total=total)
+
+    def _compute_human_task_progress(self, human_agent: Optional[HumanAgent]) -> Dict[str, Any]:
+        if human_agent is None or getattr(human_agent, "player", None) is None:
+            return self._serialize_progress_snapshot(completed=0, total=0)
+
+        tasks = getattr(human_agent.player, "tasks", None)
+        if tasks is None:
+            tasks = []
+        completed = 0
+        total = 0
+        for task in tasks:
+            total += 1
+            try:
+                if bool(task.check_completion()):
+                    completed += 1
+            except Exception:
+                continue
+        snapshot = self._serialize_progress_snapshot(completed=completed, total=total)
+        snapshot["is_alive"] = bool(getattr(human_agent.player, "is_alive", True))
+        return snapshot
+
     def get_state(self, game_id: int) -> Dict[str, Any]:
         record = self._records.get(game_id)
         if record is None:
@@ -332,6 +386,10 @@ class GameManager:
 
         player_positions = self._serialize_player_positions(game)
         meeting_messages = self._serialize_meeting_messages(game)
+        task_progress = {
+            "global": self._compute_global_task_progress(game),
+            "human": self._compute_human_task_progress(human_agent),
+        }
 
         return {
             "game_id": game_id,
@@ -356,6 +414,7 @@ class GameManager:
             "available_actions": available_actions,
             "player_positions": player_positions,
             "meeting_messages": meeting_messages,
+            "task_progress": task_progress,
         }
 
     def submit_human_action(

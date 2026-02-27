@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AmongUs Visual Client</title>
+    <link rel="icon" type="image/png" href="/web/assets/skeld.png" />
     <link rel="stylesheet" href="/web/styles.css" />
   </head>
   <body>
@@ -71,6 +72,26 @@
 
           <section id="task-panel" class="task-panel">
             <h3>Task Activity</h3>
+            <div class="task-progress-stack">
+              <div class="task-progress-group">
+                <div class="task-progress-header">
+                  <span>Your Tasks</span>
+                  <span id="human-task-progress-text">-</span>
+                </div>
+                <div class="task-progress-track">
+                  <div id="human-task-progress-fill" class="task-progress-fill human"></div>
+                </div>
+              </div>
+              <div class="task-progress-group">
+                <div class="task-progress-header">
+                  <span>Global Tasks</span>
+                  <span id="global-task-progress-text">-</span>
+                </div>
+                <div class="task-progress-track">
+                  <div id="global-task-progress-fill" class="task-progress-fill global"></div>
+                </div>
+              </div>
+            </div>
             <div id="task-feed" class="task-feed">No task actions yet.</div>
           </section>
 
