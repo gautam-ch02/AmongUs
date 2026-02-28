@@ -53,7 +53,14 @@ class LLMAgent(Agent):
             system_prompt += f"List of impostors: {list_of_impostors}"
             model = random.choice(agent_config["IMPOSTOR_LLM_CHOICES"])
 
+        prompt_profile = self._normalize_prompt_profile(os.getenv("PROMPT_PROFILE", "baseline_v1"))
+        aggression_level = self._read_aggression_level(default=3)
+        if prompt_profile == "aggressive_v1":
+            system_prompt += self._build_aggressive_addendum(player.identity, aggression_level)
+
         self.system_prompt = system_prompt
+        self.prompt_profile = prompt_profile
+        self.aggression_level = aggression_level
         self.model = model
         self.temperature = 0.7
         self.api_key = os.getenv("OPENROUTER_API_KEY")
@@ -83,6 +90,49 @@ class LLMAgent(Agent):
             "repetition_penalty": 1,
             "top_k": 0,
         }
+
+    def _normalize_prompt_profile(self, raw_profile: Any) -> str:
+        profile = str(raw_profile or "baseline_v1").strip().lower()
+        if profile not in {"baseline_v1", "aggressive_v1"}:
+            return "baseline_v1"
+        return profile
+
+    def _read_aggression_level(self, default: int = 3) -> int:
+        raw = os.getenv("AGGRESSION_LEVEL", str(default))
+        try:
+            parsed = int(raw)
+        except Exception:
+            parsed = default
+        return max(1, min(5, parsed))
+
+    def _build_aggressive_addendum(self, identity: str, level: int) -> str:
+        role = str(identity or "").strip().lower()
+        shared_block = f"""
+
+Prompt profile: aggressive_v1
+Aggression level: {level}/5
+Aggressive behavior directives:
+- Prefer proactive, high-impact legal actions over passive waiting when multiple legal actions exist.
+- In meetings, avoid neutral filler; make one concrete claim and one concrete recommendation.
+- If evidence exists, state it directly and push toward a clear outcome.
+- Keep SPEAK concise and decisive.
+- Maintain strict output-format compliance.
+"""
+        if role == "impostor":
+            role_block = """
+Impostor-specific aggression directives:
+- Prioritize tempo: create pressure through assertive misdirection and confident framing.
+- Exploit high-value elimination windows when safe and legal.
+- Protect impostor teammates without explicit self-incrimination.
+"""
+        else:
+            role_block = """
+Crewmate-specific aggression directives:
+- Apply direct pressure to suspicious players with concrete follow-up questions.
+- Convert strong evidence into decisive vote recommendations quickly.
+- Avoid passive discussion when concrete evidence is available.
+"""
+        return shared_block + role_block
 
     def _log_structured_record(self, filename: str, payload: Dict[str, Any]) -> None:
         if not self.structured_v1_path:
@@ -364,6 +414,8 @@ class LLMAgent(Agent):
                     "location": self.player.location,
                 },
                 "model": self.model,
+                "prompt_profile": self.prompt_profile,
+                "aggression_level": self.aggression_level,
                 "attempt": attempt,
                 "success": bool(success),
                 "http_status": http_status,
@@ -409,6 +461,8 @@ class LLMAgent(Agent):
                 },
                 "provider": "openrouter",
                 "model": self.model,
+                "prompt_profile": self.prompt_profile,
+                "aggression_level": self.aggression_level,
                 "attempt": attempt,
                 "success": bool(success),
                 "http_status": http_status,
@@ -436,6 +490,8 @@ class LLMAgent(Agent):
                     "model": self.model,
                     "model_settings": self.model_settings,
                     "system_prompt_hash": self.system_prompt_hash,
+                    "prompt_profile": self.prompt_profile,
+                    "aggression_level": self.aggression_level,
                 },
                 "audit_flags": {
                     "missing_usage_tokens": prompt_tokens is None or completion_tokens is None,
@@ -526,6 +582,11 @@ class LLMAgent(Agent):
             'step': step,
             "timestamp": str(datetime.now()),
             "player": {"name": self.player.name, "identity": self.player.identity, "personality": self.player.personality, "model": self.model, "location": self.player.location},
+            "prompt_config": {
+                "prompt_profile": self.prompt_profile,
+                "aggression_level": self.aggression_level,
+                "system_prompt_hash": self.system_prompt_hash,
+            },
             "interaction": {"system_prompt": sysprompt, "prompt": prompt, "response": new_response, "full_response": original_response},
         }
 
@@ -551,6 +612,8 @@ class LLMAgent(Agent):
                 "step": step,
                 "turn_id": f"{self.game_index}-t{step}-agent-{self.player.name}",
                 "utterance_id": f"{self.game_index}-t{step}-agent-{self.player.name}-utterance-1",
+                "prompt_profile": self.prompt_profile,
+                "aggression_level": self.aggression_level,
                 "agent": {
                     "name": self.player.name,
                     "identity": self.player.identity,
@@ -565,6 +628,7 @@ class LLMAgent(Agent):
                     "memory_preview": self._truncate_text(
                         prompt.get("Memory") if isinstance(prompt, dict) else "", max_chars=400
                     ),
+                    "hard_rule": prompt.get("Hard Rule") if isinstance(prompt, dict) else None,
                 },
                 "raw_response_text": original_response,
                 "normalized_response_text": self._normalize_text(original_response),
@@ -816,6 +880,15 @@ class LLMAgent(Agent):
                 f"- Mention this evidence once if useful, then update based on current alive players and latest discussion.\n"
                 "- Do not push accusations against players who are already eliminated."
             )
+        if self.prompt_profile == "aggressive_v1":
+            hard_rule += (
+                "\n\nAggression profile for this run:\n"
+                f"- Profile: {self.prompt_profile}\n"
+                f"- Aggression level: {self.aggression_level}/5\n"
+                "- Prefer decisive, high-impact legal actions over passive play.\n"
+                "- In SPEAK, avoid neutral filler: provide one concrete claim and one concrete recommendation.\n"
+                "- Keep pressure role-consistent: crewmates push suspect resolution; impostors push tempo and misdirection."
+            )
 
         messages = [
             {"role": "system", "content": self.system_prompt},
@@ -843,6 +916,8 @@ class LLMAgent(Agent):
             "Eliminated Players (Inferred)": eliminated_players,
             "Available Actions (Indexed)": available_actions_text,
             "Phase": phase,
+            "Prompt Profile": self.prompt_profile,
+            "Aggression Level": self.aggression_level,
             "Hard Rule": hard_rule.strip(),
         }
         
@@ -892,6 +967,7 @@ class LLMAgent(Agent):
             latest_kill = witnessed_kills[-1]
             killer_name = latest_kill["killer"]
             victim_name = latest_kill["victim"]
+            is_impostor = str(getattr(self.player, "identity", "")).lower() == "impostor"
 
             if all(a.name == "VOTE" for a in available_actions):
                 forced_vote = self._find_vote_action_for_player(available_actions, killer_name)
@@ -900,7 +976,7 @@ class LLMAgent(Agent):
             elif len(available_actions) == 1 and getattr(available_actions[0], "name", "") == "SPEAK":
                 # If model output does not explicitly surface witnessed kill evidence, inject a concise statement.
                 raw_output = str(output_action or "")
-                if killer_name.lower() not in raw_output.lower() or "kill" not in raw_output.lower():
+                if (not is_impostor) and (killer_name.lower() not in raw_output.lower() or "kill" not in raw_output.lower()):
                     available_actions[0].message = (
                         f"I witnessed {killer_name} kill {victim_name} at timestep {latest_kill['timestep']}. "
                         f"We should vote {killer_name}."
