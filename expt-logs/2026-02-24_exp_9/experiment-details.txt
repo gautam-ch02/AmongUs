@@ -1,0 +1,6 @@
+Experiment C:\Users\shiven\Desktop\AmongUs\expt-logs\2026-02-24_exp_9
+Date: 2026-02-24
+Commit: 1c229a31b7b46bf4af87dbc2a93d326799ca45cc
+Experiment args: {'game_config': {'num_players': 7, 'num_impostors': 2, 'num_common_tasks': 1, 'num_short_tasks': 1, 'num_long_tasks': 1, 'discussion_rounds': 3, 'max_num_buttons': 2, 'kill_cooldown': 3, 'max_timesteps': 50}, 'include_human': True, 'test': False, 'personality': False, 'agent_config': {'Impostor': 'LLM', 'Crewmate': 'LLM', 'IMPOSTOR_LLM_CHOICES': ['meta-llama/llama-3-8b-instruct'], 'CREWMATE_LLM_CHOICES': ['meta-llama/llama-3-8b-instruct']}, 'UI': False}
+Path of executable file: C:\Users\shiven\Desktop\AmongUs\utils.py
+Experiment index: 9

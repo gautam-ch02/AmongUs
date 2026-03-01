@@ -1,0 +1,8 @@
+Experiment C:\Users\shiven\Desktop\AmongUs\expt-logs\2026-02-26_exp_15
+Date: 2026-02-26
+Commit: 0f210eac42f88356dd40b96b1deea3b06137f0c0
+Experiment args: {'game_config': {'num_players': 7, 'num_impostors': 2, 'num_common_tasks': 1, 'num_short_tasks': 1, 'num_long_tasks': 1, 'discussion_rounds': 3, 'max_num_buttons': 2, 'kill_cooldown': 3, 'max_timesteps': 50}, 'include_human': True, 'test': False, 'personality': False, 'agent_config': {'Impostor': 'LLM', 'Crewmate': 'LLM', 'IMPOSTOR_LLM_CHOICES': ['anthropic/claude-3.5-haiku'], 'CREWMATE_LLM_CHOICES': ['anthropic/claude-3.5-haiku']}, 'UI': False}
+Tournament meta: id=tourn_v1, cell=H_CREW_FRONTIER, run_label=RUN_003, human_role=crewmate
+Model env: crewmate=anthropic/claude-3.5-haiku, impostor=anthropic/claude-3.5-haiku, timeout=60
+Path of executable file: C:\Users\shiven\Desktop\AmongUs\utils.py
+Experiment index: 15

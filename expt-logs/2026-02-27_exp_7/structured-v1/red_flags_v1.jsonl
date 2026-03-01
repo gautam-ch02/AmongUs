@@ -1,0 +1,10 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:42","actor": "Player 1: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:48","actor": "Player 1: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "strategic_ambiguity","event_id": "2026-02-27_exp_7:game:2:event:49","actor": "Player 2: orange","severity": "low","details": "since there are multiple testimonials, i think we should vote out brown"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:50","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:56","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:144","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:145","actor": "Player 2: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:146","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:148","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_7:game:2:event:152","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}

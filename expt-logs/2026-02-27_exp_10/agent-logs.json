@@ -1,0 +1,54 @@
+{
+  "game_index": "Game 1",
+  "step": 0,
+  "timestamp": "2026-02-27 14:33:04.518828",
+  "player": {
+    "name": "Player 1: lime",
+    "identity": "Impostor",
+    "personality": null,
+    "model": "homosapiens/brain-1.0",
+    "location": "Cafeteria"
+  },
+  "interaction": {
+    "system_prompt": "Human Agent (Web)",
+    "prompt": {
+      "All Info": "Game Time: 0/50\nCurrent phase: Task phase\nIn this phase, Crewmates should try to complete all tasks or try to identify the Impostor. Impostor should try to kill Crewmates before they finish all the tasks. The game runs sequentially, so other players in the room with you can observe your actions and act accordingly.\n\nCurrent Location: Cafeteria\nPlayers in Cafeteria: Player 1: lime, Player 2: brown, Player 3: pink, Player 4: green, Player 5: red, Player 6: black, Player 7: blue\n\nObservation history:\nNo observations have been made yet.\n\nAction history:\nNo actions have been taken yet.\n\nYour Assigned Tasks:\n1. common: Fix Wiring (Electrical) \nPath: Cafeteria->Medbay->Electrical\n\nAvailable actions:\n1. MOVE from Cafeteria to Admin\n2. MOVE from Cafeteria to Weapons\n3. MOVE from Cafeteria to Upper Engine\n4. MOVE from Cafeteria to Medbay\n5. CALL MEETING using the emergency button at Cafeteria\n6. KILL Player 2: brown\n7. KILL Player 3: pink\n8. KILL Player 4: green\n9. KILL Player 5: red\n10. KILL Player 7: blue\n",
+      "Available Actions": "1: MOVE from Cafeteria to Admin\n2: MOVE from Cafeteria to Weapons\n3: MOVE from Cafeteria to Upper Engine\n4: MOVE from Cafeteria to Medbay\n5: CALL MEETING using the emergency button at Cafeteria\n6: KILL Player 2: brown\n7: KILL Player 3: pink\n8: KILL Player 4: green\n9: KILL Player 5: red\n10: KILL Player 7: blue",
+      "Current Step": "0/50",
+      "Current Player": "Player 1: lime"
+    },
+    "response": {
+      "Condensed Memory": "",
+      "Thinking Process": "",
+      "Action": "MOVE from Cafeteria to Weapons"
+    },
+    "full_response": "[Action] MOVE from Cafeteria to Weapons"
+  }
+}
+{
+  "game_index": "Game 1",
+  "step": 1,
+  "timestamp": "2026-02-27 14:33:40.126667",
+  "player": {
+    "name": "Player 1: lime",
+    "identity": "Impostor",
+    "personality": null,
+    "model": "homosapiens/brain-1.0",
+    "location": "Weapons"
+  },
+  "interaction": {
+    "system_prompt": "Human Agent (Web)",
+    "prompt": {
+      "All Info": "Game Time: 0/50\nCurrent phase: Task phase\nIn this phase, Crewmates should try to complete all tasks or try to identify the Impostor. Impostor should try to kill Crewmates before they finish all the tasks. The game runs sequentially, so other players in the room with you can observe your actions and act accordingly.\n\nCurrent Location: Weapons\nPlayers in Weapons: Player 1: lime, Player 2: brown\n\nObservation history:\n1. Timestep 0: [task] Player 2: brown MOVE from Cafeteria to Weapons\n\nAction history:\nTimestep 0: [task phase] MOVE from Cafeteria to Weapons\n\nYour Assigned Tasks:\n1. common: Fix Wiring (Electrical) \nPath: Weapons->Cafeteria->Admin->Electrical\n\nAvailable actions:\n1. MOVE from Weapons to Navigation\n2. MOVE from Weapons to Cafeteria\n3. MOVE from Weapons to O2\n4. KILL Player 2: brown\n",
+      "Available Actions": "1: MOVE from Weapons to Navigation\n2: MOVE from Weapons to Cafeteria\n3: MOVE from Weapons to O2\n4: KILL Player 2: brown",
+      "Current Step": "1/50",
+      "Current Player": "Player 1: lime"
+    },
+    "response": {
+      "Condensed Memory": "",
+      "Thinking Process": "",
+      "Action": "KILL Player 2: brown"
+    },
+    "full_response": "[Action] KILL Player 2: brown"
+  }
+}

@@ -1,0 +1,1 @@
+{"timestamp": "2026-02-26 19:57:21.221863","model": "anthropic/claude-3.5-haiku","player": {"name": "Player 2: green","identity": "Impostor"},"error_type": "http_error","details": "attempt=1, status=500, body={\"error\":{\"message\":\"Internal Server Error\",\"code\":500}}"}

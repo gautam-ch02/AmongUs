@@ -1,0 +1,9 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:21","actor": "Player 2: red","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:23","actor": "Player 5: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:33","actor": "Player 2: red","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:74","actor": "Player 1: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:75","actor": "Player 4: pink","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:77","actor": "Player 7: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:81","actor": "Player 7: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:82","actor": "Player 1: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-26_exp_15:game:5:event:85","actor": "Player 7: brown","severity": "medium","details": "one_or_more_claims_false"}

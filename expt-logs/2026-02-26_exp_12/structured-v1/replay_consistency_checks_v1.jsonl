@@ -1,0 +1,2 @@
+{"schema_version": "v1","check_type": "missing_action_tag","severity": "low","turn_id": "2-t7-agent-Player 2: green","agent": "Player 2: green"}
+{"schema_version": "v1","check_type": "missing_usage_tokens","severity": "low","request_id": "2-Player 2: green-3"}

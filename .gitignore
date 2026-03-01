@@ -5,7 +5,7 @@
 deception-detection/
 
 # expt-logs
-expt-logs/
+#expt-logs/
 
 # probes/TransformerLens
 linear-probes/TransformerLens/

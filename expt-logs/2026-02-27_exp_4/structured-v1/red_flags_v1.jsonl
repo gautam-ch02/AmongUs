@@ -1,0 +1,5 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_4:game:5:event:57","actor": "Player 2: blue","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_4:game:5:event:58","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_4:game:5:event:59","actor": "Player 4: cyan","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_4:game:5:event:63","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_4:game:5:event:65","actor": "Player 6: black","severity": "medium","details": "one_or_more_claims_false"}
