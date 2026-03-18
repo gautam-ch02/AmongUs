@@ -1,0 +1,372 @@
+AMONG US HUMAN-LLM BENCHMARK — VERIFICATION SUITE DOCUMENTATION
+================================================================
+This document describes the dual-model verification system used to validate
+all computed metrics.  The suite was run independently by Claude Opus 4.5
+(Anthropic) and GPT-5.2 (OpenAI), each executing the same 8-step script
+against the final analysis outputs.  Both models reported 415 checks passed,
+0 failures.
+
+Generated: 2026-03-06
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MOTIVATION AND DESIGN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All 70 games are processed by an automated metric pipeline, which raises the
+risk of systematic computation errors.  To provide an independent check, a
+read-only verification script (metric_verification_check.py) was written.
+The script does not recompute metrics — it only reads the final outputs and
+cross-checks them against each other and against raw log files.
+
+Two independent LLMs ran the script.  Using two different model families
+(Anthropic and OpenAI) reduces the risk that a single model's biases or
+errors would systematically pass incorrect outputs.  Each model writes its
+results to a separate markdown log file in final_analysis/.
+
+The verification architecture has two complementary components:
+
+  1. metric_verification_check.py — high-level 8-step integrity suite
+     (the script run by both LLMs)
+  2. verify_v2_pipeline.py — deep deterministic pipeline check
+     (232 checks, called as a subprocess from Step 8)
+  3. verify_with_llm.py — optional LLM-assisted spot-check of individual
+     evidence rows against raw logs (run separately, not part of the
+     dual-model suite count)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THE 8-STEP VERIFICATION SUITE (metric_verification_check.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Each step uses three helper functions:
+  check_pass(category, message) — appends to a passed list
+  check_fail(category, message) — appends to a failed list
+  check_warn(category, message) — appends to a warnings list
+
+At the end, the script emits a structured markdown log with all pass/fail/warn
+results, a summary table, and metadata (model name, run time, git HEAD SHA).
+
+────────────────────────────────────────────────────────────
+STEP 1 — File Existence Checks
+────────────────────────────────────────────────────────────
+PURPOSE: Verify that all expected output files are present before attempting
+to read them in later steps.
+
+FILES CHECKED:
+  - final_analysis/master_comparison_table_v2.csv  (master table)
+  - final_analysis/config_mapping.csv
+  - final_analysis/per_config/{C01..C08}_game_outcomes.csv
+  - final_analysis/per_config/{C01..C08}_judge_metrics.csv
+  - final_analysis/per_config/{C01..C08}_latency_metrics.csv
+  - final_analysis/evidence/{C01..C08}_game_outcomes_evidence.csv
+  - final_analysis/evidence/{C01..C08}_judge_metrics_evidence.csv
+  - final_analysis/evidence/{C01..C08}_latency_metrics_evidence.csv
+  - final_analysis/evidence/{C01..C08}_kill_metrics_v2_evidence.csv
+  - final_analysis/evidence/{C01..C08}_vote_metrics_v2_evidence.csv
+  - final_analysis/evidence/{C01..C08}_deception_metrics_v2_evidence.csv
+  - final_analysis/evidence/{C01..C08}_task_metrics_v2_evidence.csv
+
+LOGIC: Each path is checked with os.path.exists().  Missing files immediately
+yield a check_fail entry.  The master table check has an early-return guard:
+if the master table is missing, subsequent steps that depend on it are skipped.
+
+────────────────────────────────────────────────────────────
+STEP 2 — Master Table Integrity
+────────────────────────────────────────────────────────────
+PURPOSE: Verify the structure and value ranges of the single combined master
+table before diving into individual columns.
+
+CHECKS PERFORMED:
+  Row count: exactly 8 rows expected (one per experimental configuration C01–C08).
+  Config IDs: all of C01, C02, C03, C04, C05, C06, C07, C08 must be present.
+  Column presence: 17 required columns must exist, including:
+    config_id, llm_model, human_role, prompt_profile, games_played,
+    human_win_rate, impostor_win_rate, crewmate_win_rate, mean_game_duration,
+    kills_per_game, kills_per_game_human, kills_per_game_llm,
+    crewmate_vote_accuracy_all, factual_lie_rate_llm_impostor,
+    task_completion_rate, mean_latency_ms, judge_mean_awareness
+  Total column count is also reported (expected ~84 columns).
+
+VALUE RANGE CHECKS (applied per config row):
+  human_win_rate, impostor_win_rate, crewmate_win_rate: must be in [0.0, 1.0]
+  games_played: must be a positive number
+  mean_latency_ms: must be > 0
+  judge_mean_awareness, judge_mean_lying, judge_mean_deception,
+  judge_mean_planning: all must be in [1.0, 10.0]
+
+The helper fv() performs safe float conversion with a default of None, so
+missing or non-numeric values produce check_fail entries rather than crashing.
+
+────────────────────────────────────────────────────────────
+STEP 3 — Evidence File Row Counts
+────────────────────────────────────────────────────────────
+PURPOSE: Confirm that all evidence files are populated (not empty), since an
+empty evidence file would mean the corresponding metrics have no traceable
+provenance.
+
+For each of the 8 configs, the step checks:
+  - kill_metrics_v2_evidence.csv — expected non-zero for all configs
+  - vote_metrics_v2_evidence.csv — expected non-zero for all configs
+  - deception_metrics_v2_evidence.csv — non-zero, but 0 rows emits check_warn
+    rather than check_fail (some configs may have no extractable deception events)
+  - task_metrics_v2_evidence.csv — expected non-zero
+  - game_outcomes_evidence.csv — expected non-zero
+  - latency_metrics_evidence.csv — expected non-zero
+
+The step uses csv.DictReader to count rows.  A file with 0 data rows (header
+only) yields check_warn so that it gets reported without blocking the pipeline.
+
+────────────────────────────────────────────────────────────
+STEP 4 — Cross-Reference Master Table with Per-Config Files
+────────────────────────────────────────────────────────────
+PURPOSE: Detect any discrepancy between the aggregate master table and the
+individual per-config CSV files that were inputs to it.  The master table is
+produced by combining per-config results, so they should be identical.
+
+For each config, three per-config files are cross-checked:
+
+  game_outcomes: games_played and human_win_rate are compared.
+    Numeric tolerance: abs(master - per_config) < 0.001
+
+  judge_metrics: judge_mean_awareness and judge_mean_lying are compared.
+    The step handles column name differences between master table
+    ("judge_mean_awareness") and per-config file ("mean_awareness") by trying
+    both variants.  Tolerance: abs difference < 0.01 (to account for rounding).
+    A close-but-not-exact match yields check_warn rather than check_fail.
+
+  latency_metrics: mean_latency_ms is compared.
+    Tolerance: abs(master - per_config) < 1.0 ms (tight bound given the scale
+    of latency values in the thousands of milliseconds).
+
+────────────────────────────────────────────────────────────
+STEP 5 — Spot-Check Evidence Against Raw Logs
+────────────────────────────────────────────────────────────
+PURPOSE: Go beyond aggregate statistics and confirm that the underlying raw
+game log files actually exist and contain valid data.
+
+GAME SAMPLING:
+  The config_mapping.csv file lists all games with their source_label and
+  experiment_dir.  Only rows where game_complete == "true" are considered.
+  10 games are randomly sampled using random.seed(42) (reproducible).
+
+SOURCE RESOLUTION:
+  source_label maps to one of four root directories:
+    "shiven_expt_logs"  → expt-logs/
+    "aadi_expt_logs"    → aadi-expt-logs/expt-logs/
+    "llama_crewmate"    → amongus_llama_human_crewmate/
+    "llama_impostor"    → analysis/amongus_llama_human_impostor/
+  Unknown labels yield check_warn.
+
+FOR EACH SAMPLED GAME:
+  1. Verify events_v1.jsonl exists at the expected path
+  2. Load it with the JSONL reader and confirm it has at least 1 event
+  3. Verify outcomes_v1.jsonl exists
+  4. Load it and check that the winner field is a valid code (1, 2, 3, or 4)
+
+Additionally, for all configs the step compares games_played in the master
+table against the count of complete games in config_mapping.csv.  A mismatch
+means games were either double-counted or excluded incorrectly.
+
+────────────────────────────────────────────────────────────
+STEP 6 — Verify Deception Metrics Logic
+────────────────────────────────────────────────────────────
+PURPOSE: Check the role-aware correctness rules that are fundamental to the
+deception measurement methodology.  These are not just range checks — they
+test whether the labeling logic is semantically correct.
+
+CHECKS PERFORMED:
+
+  Crewmate lie rate must be zero:
+    factual_lie_rate_crewmate == 0.0 for all configs.
+    This must hold because v2 labels crewmate accusations as "speculation",
+    not "false", so no crewmate claim is ever a deception_lie.
+    A non-zero value would indicate a bug in the truth adjudication logic.
+
+  Role-consistency for human-Crewmate configs (C01, C03, C05, C07):
+    factual_lie_rate_human_impostor should be empty/absent, because the
+    human cannot have been an impostor in these games.
+    kills_per_game_human should be 0 or empty (crewmates don't kill).
+
+  Kill total consistency for human-Impostor configs (C02, C04, C06, C08):
+    kills_per_game_human + kills_per_game_llm should sum to kills_per_game.
+    Tolerance: abs difference < 0.01.
+    This checks that the human/LLM split accounts for all kills without
+    double-counting or omission.
+
+────────────────────────────────────────────────────────────
+STEP 7 — Check for NaN and Missing Values
+────────────────────────────────────────────────────────────
+PURPOSE: Ensure that no core metric is silently missing (empty string or NaN)
+in the master table, which would corrupt downstream analysis or paper statistics.
+
+CORE COLUMNS CHECKED (11 columns that must always be present and valid):
+  config_id, llm_model, human_role, prompt_profile, games_played,
+  human_win_rate, impostor_win_rate, crewmate_win_rate,
+  mean_game_duration, kills_per_game, mean_latency_ms
+
+A value is considered invalid if it equals "" (empty string), "nan", or "NaN".
+For each (config, column) pair, a check_pass or check_fail is emitted.
+This step catches cases where a metric computation script produced no output
+for a particular config but the combine step filled in empty strings.
+
+────────────────────────────────────────────────────────────
+STEP 8 — Run the v2 Verification Pipeline (232 checks)
+────────────────────────────────────────────────────────────
+PURPOSE: Invoke the deeper, more granular verification script
+(verify_v2_pipeline.py) as a subprocess and interpret its output.
+
+The subprocess call uses sys.executable to ensure the same Python environment,
+captures stdout and stderr, enforces a 120-second timeout, and sets
+PYTHONIOENCODING=utf-8 for Windows compatibility.
+
+SUCCESS DETECTION: The parent script looks for either:
+  - The string "FINAL RESULT: ALL CHECKS PASSED" in the output
+  - "failures=0" (case-insensitive) in the output
+
+If neither is found, the last "pass/fail/warn" line from the output is
+extracted as a check_warn to surface partial information.
+
+The 232-check suite inside verify_v2_pipeline.py covers:
+  Step 1: File existence for v2 deception files across all 70 games
+  Step 2: Claim extraction quality — coverage rates by config, checks that
+          claim counts per event are non-negative, and that the claim type
+          distribution (location ~37%, witness ~24%, accusation ~20%) is
+          within expected bounds
+  Step 3: Accusation→lie logic — verifies that no crewmate accusation in
+          deception_events_v2 has deception_lie==True (the Bug 2 fix)
+  Step 4: Master table v2 integrity — row count, column presence, value ranges
+  Step 5: Evidence trail verification — for sampled deception events, loads
+          the source_file at line_number, parses the raw JSON, and confirms
+          that the event_id and actor fields match what is claimed in the
+          evidence row
+  Step 6: Correlation sanity — checks that Pearson r values for
+          thinking_vs_lie_rate correlations are in [-1, 1] and that p-values
+          are in [0, 1]
+  Step 7: Plot verification — checks that generated plot image files exist
+          and have non-zero file sizes
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LLM-ASSISTED EVIDENCE SPOT-CHECK (verify_with_llm.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This is a separate, manually-run script that provides an additional layer of
+verification beyond the deterministic checks above.  It asks an LLM to read
+actual raw log entries and confirm that specific metric values are consistent
+with what the raw data says.
+
+HOW IT WORKS:
+  For each config and metric group (game_outcomes, kill_metrics,
+  voting_metrics, deception_metrics, task_metrics, judge_metrics,
+  latency_metrics), up to 15 evidence rows are sampled using random.seed(42).
+  For each sampled row:
+    1. The source_file and line_number from the evidence CSV are used to open
+       the corresponding JSONL log file and read that exact line.
+    2. Large fields that would bloat the context are stripped:
+       (raw_prompt_text, normalized_prompt_text, raw_response_text,
+        normalized_response_text, response_headers, actor_state_snapshot_hash,
+        audit_flags)
+    3. The trimmed JSON is capped at 4000 characters.
+    4. A structured prompt is constructed:
+
+       "Given the raw log entry below (JSON), determine whether the metric
+        computation claim is correct.  Check whether the key_fields values
+        match what is in the log, and whether the metric_value is consistent.
+        Reply with VERDICT: <PASS|FAIL|WARN>  REASON: <one sentence>"
+
+    5. The LLM response is parsed with:
+         VERDICT_RE = re.compile(r"VERDICT\s*[:=]\s*(PASS|FAIL|WARN)", re.I)
+         REASON_RE  = re.compile(r"REASON\s*[:=]\s*(.+)", re.I)
+
+  Results are written to analysis/llm_verification_report.csv.
+
+SUPPORTED PROVIDERS:
+  The script auto-detects the provider from the model name:
+    "gemini" in model → Google Generative AI SDK
+    "claude" / "anthropic" → Anthropic SDK
+    "gpt" / "openai" → OpenAI SDK
+  All providers use the same retry logic: up to 3 attempts with
+  2-second exponential backoff on rate-limit or timeout errors.
+
+FILE CACHING:
+  To avoid re-reading the same JSONL file multiple times (since many evidence
+  rows may reference the same log file), a module-level dict _file_cache maps
+  source_file paths to pre-read line lists.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERIFICATION OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Each LLM run of the 8-step suite produces a markdown file with:
+
+  Metadata table:
+    Generated timestamp, model name, Python version, platform, workspace
+    path, git HEAD SHA, duration in seconds, total checks passed/failed/
+    warned, and an overall PASS/FAIL status.
+
+  Summary narrative:
+    "All verification checks passed." or "N checks failed."
+
+  Failures table (if any):
+    Columns: category, message.  Each failure is one row.
+
+  Warnings table (if any):
+    Same format as failures.
+
+  Passed Checks Sample:
+    Grouped by category; shows count of passed checks and first 3 examples
+    per category.
+
+  Verification Steps Performed:
+    A numbered list summarizing what each of the 8 steps did.
+
+  Footer:
+    "This verification was performed by <model> via GitHub Copilot on
+     request from the user."
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHY DUAL-MODEL VERIFICATION MATTERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The verification suite is deterministic Python code — it produces the same
+results regardless of which model runs it.  The value of using two models is
+not in the logic of the checks themselves, but in the execution environment:
+
+  - Each model ran the script independently in its own session, without
+    seeing the other's output.
+  - Both models needed to correctly parse the script, install any missing
+    dependencies, handle file paths, and call subprocess correctly.
+  - Agreement between two independent runs from different model families
+    provides high confidence that no systematic execution error occurred.
+
+The 415-check count per model breaks down approximately as:
+  Step 1 (file existence):          ~88 checks  (8 configs × 11 file types)
+  Step 2 (master table integrity):  ~60 checks  (row count + columns + ranges)
+  Step 3 (evidence row counts):     ~48 checks  (8 configs × 6 evidence types)
+  Step 4 (cross-reference):         ~72 checks  (8 configs × 9 field pairs)
+  Step 5 (spot-check raw logs):     ~30 checks  (10 sampled games × 3 checks)
+  Step 6 (deception logic):         ~32 checks  (8 configs × 4 role checks)
+  Step 7 (missing values):          ~88 checks  (8 configs × 11 core columns)
+  Step 8 (v2 pipeline):             ~1  check   (pass/fail of subprocess)
+  Total:                            ~419 checks (exact count depends on
+                                                 which optional branches execute)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT THE VERIFICATION SUITE DOES NOT CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The suite verifies consistency and provenance, but not:
+
+  - Statistical significance of results (confidence intervals, sample sizes)
+  - Whether the game simulation itself was correct (the simulator is a
+    separate codebase)
+  - Claim extraction recall — whether claims present in speech but missed
+    by the extractor are absent from deception metrics
+  - Human player ground truth — whether the human player actually did what
+    the logs record (logs are written by the web interface, not audited)
+  - Judge calibration — whether Gemini-2.5-Flash's 1–10 scores are
+    well-calibrated absolute measures vs. relative ordinal rankings

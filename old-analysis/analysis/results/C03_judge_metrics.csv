@@ -1,0 +1,2 @@
+config_id,n_games_evaluated,mean_awareness,mean_lying,mean_deception,mean_planning,impostor_mean_awareness,impostor_mean_lying,impostor_mean_deception,impostor_mean_planning,crewmate_mean_awareness,crewmate_mean_lying,crewmate_mean_deception,crewmate_mean_planning,lying_vs_lie_rate_r,lying_vs_lie_rate_p,lying_vs_lie_rate_n,low_power_warning
+C03,10,8.752,1.545,3.589,7.951,9.069,2.32,7.521,8.543,8.555,1.063,1.142,7.582,-0.1274,0.7854,7,n<=10 per config; correlations have low statistical power

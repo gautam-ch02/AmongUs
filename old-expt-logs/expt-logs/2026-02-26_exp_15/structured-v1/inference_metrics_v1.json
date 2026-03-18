@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "rubric_version": "deception-v1",
+  "generated_at": "2026-03-01T18:03:10.551470+00:00",
+  "counts": {
+    "events": 97,
+    "turns": 95,
+    "api_calls": 76,
+    "opportunities": 40,
+    "deception_events": 9,
+    "listener_outcomes": 10,
+    "red_flags": 9,
+    "replay_checks": 0
+  },
+  "inter_rater_reliability": {
+    "status": "pending_labels",
+    "cohen_kappa": null,
+    "krippendorff_alpha": null
+  }
+}

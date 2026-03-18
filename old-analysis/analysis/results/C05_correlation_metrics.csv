@@ -1,0 +1,2 @@
+config_id,n_games,latency_vs_win_r,latency_vs_win_p,latency_vs_win_n,latency_vs_lie_rate_r,latency_vs_lie_rate_p,latency_vs_lie_rate_n,thinking_vs_lie_rate_r,thinking_vs_lie_rate_p,thinking_vs_lie_rate_n,low_power_warning
+C05,5,0.019,0.9758,5,0.164,0.7921,5,0.7065,0.1822,5,n<=10 per config; correlations have low statistical power

@@ -1,0 +1,79 @@
+source,exp_dir,game_key,date,human_role,llm_model,prompt_strategy,winner_code,human_outcome
+aadi_expt_logs,2026-02-28_exp_0,Game 1,2026-02-28,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+aadi_expt_logs,2026-02-28_exp_1,Game 2,2026-02-28,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+aadi_expt_logs,2026-02-28_exp_2,Game 3,2026-02-28,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+aadi_expt_logs,2026-02-28_exp_3,Game 4,2026-02-28,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+aadi_expt_logs,2026-02-28_exp_4,Game 5,2026-02-28,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+aadi_expt_logs,2026-02-28_exp_5,Game 1,2026-02-28,impostor,anthropic/claude-3.5-haiku,baseline_v1,3,loss
+aadi_expt_logs,2026-02-28_exp_6,Game 2,2026-02-28,impostor,anthropic/claude-3.5-haiku,baseline_v1,3,loss
+aadi_expt_logs,2026-02-28_exp_7,Game 3,2026-02-28,impostor,anthropic/claude-3.5-haiku,baseline_v1,1,win
+aadi_expt_logs,2026-02-28_exp_8,Game 4,2026-02-28,impostor,anthropic/claude-3.5-haiku,baseline_v1,3,loss
+aadi_expt_logs,2026-02-28_exp_9,Game 5,2026-02-28,impostor,anthropic/claude-3.5-haiku,baseline_v1,3,loss
+aadi_expt_logs,2026-02-28_exp_10,Game 1,2026-02-28,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+aadi_expt_logs,2026-02-28_exp_11,Game 2,2026-02-28,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+aadi_expt_logs,2026-02-28_exp_12,Game 3,2026-02-28,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+llama_crewmate,2026-02-27_exp_3,Game 1,2026-02-27,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,loss
+llama_crewmate,2026-02-27_exp_4,Game 2,2026-02-27,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,win
+llama_crewmate,2026-03-01_exp_0,Game 1,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,win
+llama_crewmate,2026-03-01_exp_1,Game 2,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,loss
+llama_crewmate,2026-03-01_exp_2,Game 3,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,win
+llama_crewmate,2026-03-01_exp_3,Game 4,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,loss
+llama_crewmate,2026-03-01_exp_4,Game 5,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,win
+llama_crewmate,2026-03-01_exp_5,Game 6,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,win
+llama_crewmate,2026-03-01_exp_6,Game 7,2026-03-01,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,loss
+llama_impostor,2026-03-01_exp_7,Game 1,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_8,Game 2,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_9,Game 3,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,loss
+llama_impostor,2026-03-01_exp_10,Game 4,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,3,loss
+llama_impostor,2026-03-01_exp_11,Game 5,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_12,Game 6,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_13,Game 7,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_14,Game 8,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_15,Game 9,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,1,win
+llama_impostor,2026-03-01_exp_16,Game 10,2026-03-01,impostor,meta-llama/llama-3.1-8b-instruct,baseline_v1,2,loss
+shiven_expt_logs,2026-02-08_exp_0,Game 1,2026-02-08,unknown,crew=microsoft/phi-4 / imp=meta-llama/llama-3.3-70b-instruct,baseline_v1,2,unknown
+shiven_expt_logs,2026-02-08_exp_1,Game 1,2026-02-08,unknown,openrouter/free,baseline_v1,3,unknown
+shiven_expt_logs,2026-02-24_exp_7,Game 1,2026-02-24,impostor,meta-llama/llama-3-8b-instruct,baseline_v1,1,win
+shiven_expt_logs,2026-02-25_exp_2,Game 1,2026-02-25,crewmate,meta-llama/llama-3-8b-instruct,baseline_v1,1,loss
+shiven_expt_logs,2026-02-26_exp_0,Game 1,2026-02-26,impostor,meta-llama/llama-3-8b-instruct,baseline_v1,1,win
+shiven_expt_logs,2026-02-26_exp_3,Game 3,2026-02-26,crewmate,meta-llama/llama-3-8b-instruct,baseline_v1,2,loss
+shiven_expt_logs,2026-02-26_exp_5,Game 1,2026-02-26,crewmate,openai/gpt-5-mini,baseline_v1,3,win
+shiven_expt_logs,2026-02-26_exp_11,Game 1,2026-02-26,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+shiven_expt_logs,2026-02-26_exp_12,Game 2,2026-02-26,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+shiven_expt_logs,2026-02-26_exp_13,Game 3,2026-02-26,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+shiven_expt_logs,2026-02-26_exp_14,Game 4,2026-02-26,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+shiven_expt_logs,2026-02-26_exp_15,Game 5,2026-02-26,crewmate,anthropic/claude-3.5-haiku,baseline_v1,3,win
+shiven_expt_logs,2026-02-27_exp_0,Game 1,2026-02-27,impostor,anthropic/claude-3.5-haiku,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_1,Game 2,2026-02-27,impostor,anthropic/claude-3.5-haiku,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_2,Game 3,2026-02-27,impostor,anthropic/claude-3.5-haiku,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_3,Game 4,2026-02-27,impostor,anthropic/claude-3.5-haiku,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_4,Game 5,2026-02-27,impostor,anthropic/claude-3.5-haiku,baseline_v1,3,loss
+shiven_expt_logs,2026-02-27_exp_6,Game 1,2026-02-27,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-27_exp_7,Game 2,2026-02-27,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-27_exp_11,Game 1,2026-02-27,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-27_exp_13,Game 1,2026-02-27,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_14,Game 2,2026-02-27,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_15,Game 3,2026-02-27,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_17,Game 1,2026-02-27,impostor,openai/gpt-5-mini,baseline_v1,1,win
+shiven_expt_logs,2026-02-27_exp_18,Game 1,2026-02-27,crewmate,meta-llama/llama-3.1-8b-instruct,baseline_v1,2,loss
+shiven_expt_logs,2026-02-28_exp_0,Game 2,2026-02-28,crewmate,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,loss
+shiven_expt_logs,2026-02-28_exp_1,Game 3,2026-02-28,crewmate,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,loss
+shiven_expt_logs,2026-02-28_exp_2,Game 4,2026-02-28,crewmate,google/gemini-2.5-flash,aggressive_v1 (lvl 3),2,loss
+shiven_expt_logs,2026-02-28_exp_3,Game 5,2026-02-28,crewmate,google/gemini-2.5-flash,aggressive_v1 (lvl 3),4,loss
+shiven_expt_logs,2026-02-28_exp_4,Game 6,2026-02-28,crewmate,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,loss
+shiven_expt_logs,2026-02-28_exp_5,Game 1,2026-02-28,impostor,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,win
+shiven_expt_logs,2026-02-28_exp_6,Game 2,2026-02-28,impostor,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,win
+shiven_expt_logs,2026-02-28_exp_7,Game 3,2026-02-28,impostor,google/gemini-2.5-flash,aggressive_v1 (lvl 3),2,loss
+shiven_expt_logs,2026-02-28_exp_8,Game 4,2026-02-28,impostor,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,win
+shiven_expt_logs,2026-02-28_exp_9,Game 5,2026-02-28,impostor,google/gemini-2.5-flash,aggressive_v1 (lvl 3),1,win
+shiven_expt_logs,2026-02-28_exp_10,Game 1,2026-02-28,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-28_exp_11,Game 2,2026-02-28,crewmate,google/gemini-2.5-flash,baseline_v1,4,loss
+shiven_expt_logs,2026-02-28_exp_12,Game 3,2026-02-28,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-28_exp_13,Game 4,2026-02-28,crewmate,google/gemini-2.5-flash,baseline_v1,3,win
+shiven_expt_logs,2026-02-28_exp_14,Game 5,2026-02-28,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-02-28_exp_15,Game 1,2026-02-28,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-02-28_exp_16,Game 2,2026-02-28,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-03-01_exp_0,Game 1,2026-03-01,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-03-01_exp_1,Game 2,2026-03-01,crewmate,google/gemini-2.5-flash,baseline_v1,1,loss
+shiven_expt_logs,2026-03-01_exp_2,Game 1,2026-03-01,impostor,google/gemini-2.5-flash,baseline_v1,1,win
+shiven_expt_logs,2026-03-01_exp_3,Game 2,2026-03-01,impostor,google/gemini-2.5-flash,baseline_v1,1,win

@@ -1,0 +1,2 @@
+config_id,n_games,total_tasks_completed,tasks_per_game,task_completion_rate,tasks_per_crewmate_per_timestep,tasks_in_crewmate_wins,tasks_in_impostor_wins,n_crewmate_win_games,n_impostor_win_games
+C05,5,44,8.8,0.5867,0.059457,10,8.5,1,4

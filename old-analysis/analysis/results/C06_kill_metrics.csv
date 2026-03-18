@@ -1,0 +1,2 @@
+config_id,n_games,total_kills,kills_per_game,kills_per_impostor,mean_kill_timestep,kill_timing_early,kill_timing_mid,kill_timing_late,witnessed_kills,unwitnessed_kills,witnessed_kill_rate,mean_witness_count,witnessed_kills_with_next_meeting,witnessed_kills_no_meeting,killer_survived_count,killer_ejected_count,impostor_survival_after_witness_rate
+C06,5,14,2.8,1.4,10.36,3,4,7,4,10,0.2857,0.429,2,2,1,1,0.5

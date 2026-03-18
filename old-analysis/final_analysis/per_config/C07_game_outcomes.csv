@@ -1,0 +1,2 @@
+config_id,games_played,impostor_wins,crewmate_wins,human_win_rate,mean_game_duration,median_game_duration,mean_survivors_at_end
+C07,10,4,6,0.6,19.9,15.0,4.2

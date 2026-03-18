@@ -1,0 +1,2 @@
+config_id,n_games,total_speak_events,claim_lie_rate_impostor,claim_lie_rate_crewmate,meeting_deception_density,mean_speak_length_impostor,mean_speak_length_crewmate,fake_task_rate,red_flag_count_per_game,red_flag_by_type,total_deception_opportunities,utilized_opportunities,deception_opportunity_utilization
+C04,10,90,0.75,0.8333,0.3704,30.37,32.47,0.0484,3.0,"{""claim_state_mismatch"": 29, ""strategic_ambiguity"": 1}",90,30,0.3333

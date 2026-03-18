@@ -1,0 +1,7 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_12:game:6:event:46","actor": "Player 2: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "strategic_ambiguity","event_id": "2026-03-01_exp_12:game:6:event:48","actor": "Player 4: blue","severity": "low","details": "p6:  green was in the admin with the body, which i think is very suspicious as they were not reporting it"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_12:game:6:event:52","actor": "Player 3: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "strategic_ambiguity","event_id": "2026-03-01_exp_12:game:6:event:53","actor": "Player 4: blue","severity": "low","details": "i think p6: green should be voted out as they are logically the most likely killler in the admin room"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_12:game:6:event:54","actor": "Player 5: purple","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_12:game:6:event:57","actor": "Player 3: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "strategic_ambiguity","event_id": "2026-03-01_exp_12:game:6:event:58","actor": "Player 4: blue","severity": "low","details": "i think orange is safe"}

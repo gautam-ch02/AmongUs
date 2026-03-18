@@ -1,0 +1,2 @@
+config_id,n_games,total_votes,skip_votes,skip_vote_rate,correct_votes,correct_vote_rate,human_votes,correct_vote_rate_human,llm_votes,correct_vote_rate_llm,total_ejections,correct_ejections,ejection_accuracy,impostor_detection_rate,vote_changed_count,vote_changed_rate
+C03,10,69,0,0.0,21,0.3043,13,0.4615,56,0.2679,11,3,0.2727,0.3,0,0.0

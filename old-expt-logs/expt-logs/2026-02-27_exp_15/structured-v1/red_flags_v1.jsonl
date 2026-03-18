@@ -1,0 +1,12 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:16","actor": "Player 1: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:20","actor": "Player 5: purple","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:23","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:24","actor": "Player 3: yellow","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:25","actor": "Player 4: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:26","actor": "Player 5: purple","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:29","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:30","actor": "Player 3: yellow","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:32","actor": "Player 5: purple","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:107","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:109","actor": "Player 4: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-27_exp_15:game:3:event:110","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}

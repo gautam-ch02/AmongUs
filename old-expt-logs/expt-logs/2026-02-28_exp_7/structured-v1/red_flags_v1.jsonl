@@ -1,0 +1,5 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_7:game:3:event:99","actor": "Player 5: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_7:game:3:event:105","actor": "Player 5: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_7:game:3:event:184","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_7:game:3:event:185","actor": "Player 5: brown","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_7:game:3:event:187","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}

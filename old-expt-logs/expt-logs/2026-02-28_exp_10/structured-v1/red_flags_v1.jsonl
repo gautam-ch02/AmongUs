@@ -1,0 +1,13 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:193","actor": "Player 1: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:194","actor": "Player 2: blue","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:196","actor": "Player 4: black","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:198","actor": "Player 1: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:199","actor": "Player 2: blue","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:200","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:201","actor": "Player 4: black","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:202","actor": "Player 6: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:203","actor": "Player 1: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:204","actor": "Player 2: blue","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:205","actor": "Player 3: lime","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:206","actor": "Player 4: black","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:207","actor": "Player 6: white","severity": "medium","details": "one_or_more_claims_false"}

@@ -14,6 +14,8 @@ import argparse
 import datetime
 import subprocess
 
+from server.app import app
+
 from amongagents.envs.configs.agent_config import ALL_LLM
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME, FIVE_MEMBER_GAME
 from amongagents.envs.configs.map_config import map_coords

@@ -1,0 +1,9 @@
+file,MATCH,MATCH_CONFIRMED,MATCH_ROUNDING,MISMATCH,NOT_VERIFIABLE
+correlation_metrics,50,0,0,38,0
+deception_metrics,40,0,0,0,64
+game_outcomes,56,0,0,0,0
+judge_metrics,117,0,19,0,0
+kill_metrics,136,0,0,0,0
+latency_metrics,104,0,0,24,0
+task_metrics,0,72,0,0,0
+voting_metrics,128,0,0,0,0

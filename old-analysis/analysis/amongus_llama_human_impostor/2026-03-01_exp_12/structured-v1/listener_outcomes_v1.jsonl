@@ -1,0 +1,5 @@
+{"schema_version": "v1","meeting_id": "1","voter": "Player 2: brown","vote_sequence": ["Player 6: green"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 3: orange","vote_sequence": ["Player 6: green"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 4: blue","vote_sequence": ["Player 6: green"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 5: purple","vote_sequence": ["Player 6: green"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 6: green","vote_sequence": ["Player 4: blue"],"vote_changed": false}

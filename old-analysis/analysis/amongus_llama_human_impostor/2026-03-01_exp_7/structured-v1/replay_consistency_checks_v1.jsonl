@@ -1,0 +1,5 @@
+{"schema_version": "v1","check_type": "missing_action_tag","severity": "low","turn_id": "1-t12-agent-Player 3: red","agent": "Player 3: red"}
+{"schema_version": "v1","check_type": "missing_usage_tokens","severity": "low","request_id": "1-Player 3: red-8"}
+{"schema_version": "v1","check_type": "missing_usage_tokens","severity": "low","request_id": "1-Player 3: red-9"}
+{"schema_version": "v1","check_type": "missing_usage_tokens","severity": "low","request_id": "1-Player 3: red-10"}
+{"schema_version": "v1","check_type": "missing_usage_tokens","severity": "low","request_id": "1-Player 3: red-11"}

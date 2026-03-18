@@ -1,0 +1,14 @@
+{"schema_version": "v1","meeting_id": "1","voter": "Player 1: lime","vote_sequence": ["Player 5: white"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 2: cyan","vote_sequence": ["Player 5: white"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 3: brown","vote_sequence": ["Player 2: cyan"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 4: orange","vote_sequence": ["Player 2: cyan"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "1","voter": "Player 5: white","vote_sequence": ["Player 4: orange"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "2","voter": "Player 1: lime","vote_sequence": ["Player 2: cyan"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "2","voter": "Player 2: cyan","vote_sequence": ["Player 4: orange"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "2","voter": "Player 3: brown","vote_sequence": ["Player 5: white"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "2","voter": "Player 4: orange","vote_sequence": ["Player 3: brown"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "2","voter": "Player 5: white","vote_sequence": ["Player 3: brown"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "3","voter": "Player 1: lime","vote_sequence": ["Player 2: cyan"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "3","voter": "Player 2: cyan","vote_sequence": ["Player 1: lime"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "3","voter": "Player 4: orange","vote_sequence": ["Player 2: cyan"],"vote_changed": false}
+{"schema_version": "v1","meeting_id": "3","voter": "Player 5: white","vote_sequence": ["Player 4: orange"],"vote_changed": false}

@@ -1,0 +1,2 @@
+config_id,n_games,total_api_calls,api_failure_rate,mean_latency_ms,median_latency_ms,p90_latency_ms,std_latency_ms,latency_task_phase,latency_meeting_phase,mean_prompt_tokens,mean_completion_tokens,prompt_growth_slope_mean,prompt_growth_r2_mean,thinking_depth_mean,thinking_depth_impostor,thinking_depth_crewmate
+C07,10,1169,0.1257,4385.4117,3715.415,7187.4,2954.2446,4300.071,4838.4548,1254.5783,211.7965,19.7414,0.245,84.4129,91.3403,80.3127

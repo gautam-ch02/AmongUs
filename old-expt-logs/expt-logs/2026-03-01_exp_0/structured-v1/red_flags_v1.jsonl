@@ -1,0 +1,6 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:89","actor": "Player 6: pink","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:90","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:92","actor": "Player 3: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:96","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:98","actor": "Player 3: orange","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-03-01_exp_0:game:1:event:102","actor": "Player 7: green","severity": "medium","details": "one_or_more_claims_false"}

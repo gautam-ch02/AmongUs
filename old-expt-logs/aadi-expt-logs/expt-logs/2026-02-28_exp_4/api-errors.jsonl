@@ -1,0 +1,2 @@
+{"timestamp": "2026-02-28 14:31:06.000617","model": "anthropic/claude-3.5-haiku","player": {"name": "Player 5: white","identity": "Crewmate"},"error_type": "timeout_error","details": "attempt=1, error="}
+{"timestamp": "2026-02-28 14:31:06.066874","model": "anthropic/claude-3.5-haiku","player": {"name": "Player 5: white","identity": "Crewmate"},"error_type": "connection_error","details": "attempt=2, error=Cannot connect to host openrouter.ai:443 ssl:default [getaddrinfo failed]"}

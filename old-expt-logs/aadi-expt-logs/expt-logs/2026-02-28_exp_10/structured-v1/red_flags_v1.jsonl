@@ -1,0 +1,8 @@
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:7","actor": "Player 1: red","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:8","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:9","actor": "Player 3: yellow","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:11","actor": "Player 5: black","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:14","actor": "Player 2: white","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:21","actor": "Player 3: yellow","severity": "medium","details": "one_or_more_claims_false"}
+{"schema_version": "v1","flag_type": "strategic_ambiguity","event_id": "2026-02-28_exp_10:game:1:event:22","actor": "Player 4: pink","severity": "low","details": "guys we need you to trust us. brown killed purple. black can you clarify on your text i think you mistyped"}
+{"schema_version": "v1","flag_type": "claim_state_mismatch","event_id": "2026-02-28_exp_10:game:1:event:59","actor": "Player 4: pink","severity": "medium","details": "one_or_more_claims_false"}

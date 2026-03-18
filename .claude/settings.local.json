@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(python3 -:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3:*)",
+      "Bash(pip install aiohttp)",
+      "Bash(pip install aiohttp -q)",
+      "Bash(test -f \"c:/Users/shiven/Desktop/AmongUs/expt-logs/2026-02-27_exp_13/structured-v1/deception_events_v2.jsonl\")",
+      "Bash(test -f \"c:/Users/shiven/Desktop/AmongUs/analysis/results/master_comparison_table.csv\")",
+      "Bash(python -c \"import spacy; nlp = spacy.load\\(''en_core_web_sm''\\); print\\(''spaCy OK, model loaded''\\)\")",
+      "Bash(pip install spacy)",
+      "Bash(python -m spacy download en_core_web_sm)",
+      "Bash(python -c \":*)",
+      "Bash(wc -l c:/Users/shiven/Desktop/AmongUs/analysis/*.py c:/Users/shiven/Desktop/AmongUs/final_analysis/*.py)",
+      "Bash(find /c/Users/shiven/Desktop/AmongUs/among-agents -type f -name *.py)",
+      "Bash(mkdir -p old-expt-logs)",
+      "Bash(mv expt-logs:*)",
+      "Bash(mv aadi-expt-logs:*)",
+      "Bash(mv amongus_llama_human_crewmate old-expt-logs/)",
+      "Bash(mkdir -p old-analysis)",
+      "Bash(mv analysis:*)",
+      "Bash(mv final_analysis old-analysis/)",
+      "Bash(mkdir expt-logs:*)",
+      "Bash(mkdir analysis:*)",
+      "Bash(mv run_v2_inference.py run_inference.py)",
+      "Bash(mv step_recompute_v2.py step_recompute.py)",
+      "Bash(mv verify_v2_pipeline.py verify_pipeline.py)"
+    ]
+  }
+}
